@@ -1,11 +1,9 @@
-use ferris_says::say; // from the previous step
-use std::io::{stdout, BufWriter};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
 fn main() {
-    let stdout = stdout();
-    let message = String::from("Hello fellow Rustaceans!");
-    let width = message.chars().count();
-
-    let mut writer = BufWriter::new(stdout.lock());
-    say(&message, width, &mut writer).unwrap();
+    let sql = "SELECT id, name FROM users WHERE age > 30;";
+    let dialect = GenericDialect {};
+    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+    println!("{:#?}", ast);
 }
