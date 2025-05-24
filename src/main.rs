@@ -33,7 +33,20 @@ fn run() -> Result<()> {
     let mut storage_engine = StorageEngine::new();
     
     // 可选：从磁盘加载持久化数据
-    // storage_engine.load("database.db")?;
+    storage_engine.load("database.db")?;
+    
+    // 创建默认数据库（如果不存在）
+    const DEFAULT_DB_NAME: &str = "default";
+    if !storage_engine.has_database(DEFAULT_DB_NAME) {
+        storage_engine.create_database(DEFAULT_DB_NAME.to_string())?;
+        println!("已创建默认数据库 '{}'", DEFAULT_DB_NAME);
+    }
+    
+    // 如果没有选中任何数据库，则选择默认数据库
+    if storage_engine.current_database().is_err() {
+        storage_engine.use_database(DEFAULT_DB_NAME)?;
+        println!("已切换到默认数据库 '{}'", DEFAULT_DB_NAME);
+    }
     
     // 2. 读取SQL文件
     let sql_content = fs::read_to_string(file_path)
@@ -56,7 +69,7 @@ fn run() -> Result<()> {
     }
     
     // 可选：持久化存储引擎状态 - 现在可以直接使用storage_engine
-    // storage_engine.save("database.db")?;
+    storage_engine.save("database.db")?;
     
     Ok(())
 }

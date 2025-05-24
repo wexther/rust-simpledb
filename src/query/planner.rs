@@ -1,5 +1,5 @@
 use crate::error::{DBError, Result};
-use sqlparser::ast::Statement;
+use sqlparser::ast::{Statement, ObjectType};
 use crate::storage::table::{ColumnDef, Value};
 
 /// 表示查询计划的枚举
@@ -29,6 +29,18 @@ pub enum QueryPlan {
         table_name: String,
         conditions: Option<Condition>,
     },
+    // 数据库操作计划
+    CreateDatabase {
+        name: String,
+    },
+    DropDatabase {
+        name: String,
+    },
+    UseDatabase {
+        name: String,
+    },
+    ShowDatabases,
+    ShowTables,
 }
 
 /// 表示查询条件的结构
@@ -67,8 +79,19 @@ impl QueryPlanner {
                     conditions: None,
                 })
             },
-            // 其他语句类型...
-            _ => Err(DBError::Parse(format!("Unsupported statement: {:?}", stmt))),
+            // 数据库操作解析
+            Statement::CreateSchema { schema_name, .. } => {
+                Ok(QueryPlan::CreateDatabase {
+                    name: schema_name.to_string(),
+                })
+            },
+            Statement::Drop { object_type, names, .. } => {
+                todo!();
+            },
+            // USE 语句可能需要自定义解析，因为sqlparser可能不直接支持
+            // ...
+
+            _ => Err(DBError::Parse(format!("不支持的SQL语句: {:?}", stmt))),
         }
     }
     
