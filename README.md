@@ -1,1 +1,3 @@
-cargo run
+# README
+
+见doc/
