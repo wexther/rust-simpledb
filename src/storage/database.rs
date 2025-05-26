@@ -105,4 +105,17 @@ impl Database {
         
         Ok(())
     }
+
+    /// 插入记录到表中的代理方法（封装buffer_manager的访问）
+    pub fn insert_record(&mut self, table_name: &str, values: Vec<super::table::Value>) -> Result<super::record::RecordId> {
+        // 使用if let避免同时拥有两个可变引用
+        if let Some(table) = self.tables.get_mut(table_name) {
+            // 现在只有一个对self的可变引用，可以安全地获取buffer_manager
+            let buffer_manager = self.persistence.buffer_manager_mut();
+            // 调用表的insert_record方法
+            table.insert_record(buffer_manager, values)
+        } else {
+            Err(DBError::NotFound(format!("表 '{}' 不存在", table_name)))
+        }
+    }
 }

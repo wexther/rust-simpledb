@@ -52,24 +52,18 @@ impl<'a> Executor for DMLExecutor<'a> {
     fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
         match plan {
             QueryPlan::Insert { table_name, values } => {
-                // 实现插入操作
-                // new code
                 // 尝试获取当前数据库
                 if let Ok(current_database) = self.storage.current_database_mut() {
-                    // 尝试获取对应的表
-                    if let Ok(table) = current_database.get_table_mut(&table_name) {
-                        // 遍历要插入的每一行数据
-                        for record in values {
-                            // 调用表的 insert_record 方法插入数据
-                            if let Err(e) = table.insert_record(current_database.get_buffer_manager_mut(),record) {
-                                return Ok(QueryResult::Error(format!("插入数据到表 '{}' 失败: {}", table_name, e)));
-                            }
+                    // 遍历要插入的每一行数据
+                    for record in values {
+                        // 使用database的代理方法插入记录，不需要直接处理buffer_manager
+                        if let Err(e) = current_database.insert_record(&table_name, record) {
+                            return Ok(QueryResult::Error(format!("插入数据到表 '{}' 失败: {}", table_name, e)));
                         }
-                        return Ok(QueryResult::Success(format!("表 '{}' 插入成功", table_name)));
                     }
+                    return Ok(QueryResult::Success(format!("表 '{}' 插入成功", table_name)));
                 }
-                // new code end
-                return Ok(QueryResult::Error("插入失败".to_string()));
+                return Ok(QueryResult::Error("当前没有选择数据库".to_string()));
             }
             QueryPlan::Update { table_name, set_pairs, conditions } => {
                 // 实现更新操作
