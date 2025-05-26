@@ -61,11 +61,9 @@ impl<'a> Executor for DMLExecutor<'a> {
                         // 遍历要插入的每一行数据
                         for record in values {
                             // 调用表的 insert_record 方法插入数据
-                            /*
-                            if let Err(e) = table.insert_record(record) {
+                            if let Err(e) = table.insert_record(current_database.get_buffer_manager_mut(),record) {
                                 return Ok(QueryResult::Error(format!("插入数据到表 '{}' 失败: {}", table_name, e)));
                             }
-                            */
                         }
                         return Ok(QueryResult::Success(format!("表 '{}' 插入成功", table_name)));
                     }

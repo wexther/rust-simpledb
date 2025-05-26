@@ -64,6 +64,16 @@ impl Database {
             .get_mut(name)
             .ok_or_else(|| DBError::NotFound(format!("表 '{}' 不存在", name)))
     }
+
+    // new code
+    pub fn get_buffer_manager(&self) -> &super::io::buffer_manager::BufferManager {
+        self.persistence.buffer_manager()
+    }
+
+    pub fn get_buffer_manager_mut(&mut self) -> &mut super::io::buffer_manager::BufferManager {
+        self.persistence.buffer_manager_mut()
+    }
+    // new code end
     
     /// 加载数据库
     pub fn load(&mut self) -> Result<()> {
