@@ -12,6 +12,7 @@ pub struct ColumnDef {
     pub data_type: DataType,
     pub nullable: bool,
     pub is_primary_key: bool,
+    // pub is_unique: bool, // 待拓展功能unique，该列值互相不同，与主键不同，unique可以有空值但只能有一个
 }
 
 /// 表示数据类型的枚举
