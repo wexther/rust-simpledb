@@ -183,6 +183,59 @@ impl Table {
         
         page_manager.delete_record(&mut page, id.slot)
     }
+
+    /// 修改记录
+    pub fn update_record(&mut self, buffer_manager: &mut BufferManager, id: RecordId, set_pairs: Vec<(String, Value)>) -> Result<()> {
+        // 检查页面 ID 是否属于该表
+        if !self.page_ids.contains(&id.page_id) {
+            return Err(DBError::NotFound(format!("页面 {} 不属于表 {}", id.page_id, self.name)));
+        }
+
+        // 获取可修改的页面
+        let mut page = buffer_manager.get_page_mut(id.page_id)?;
+        let mut page_manager = RecordPageManager::load_from_page(&page)?;
+
+        // 获取原记录
+        let original_record = page_manager.get_record(&page, id.slot)?;
+
+        // 复制原记录的值
+        let mut new_values:Vec<Value> = original_record.values().to_vec();
+
+        // 按照 set_pairs 更新记录值
+        for (col_name, new_value) in set_pairs {
+            // 查找列的索引
+            if let Some(col_index) = self.columns.iter().position(|col| col.name == col_name) {
+                let col_def = &self.columns[col_index];
+
+                // 验证新值的数据类型是否与列定义相符
+                match (&col_def.data_type, &new_value) {
+                    (DataType::Int, Value::Int(_)) => {}
+                    (DataType::Varchar(_), Value::String(_)) => {}
+                    (_, Value::Null) if col_def.nullable => {}
+                    _ => {
+                        return Err(DBError::Schema(format!(
+                            "列 '{}' 的数据类型与新值不匹配",
+                            col_name
+                        )));
+                    }
+                }
+
+                // 更新记录中的值
+                //new_values[col_index] = new_value;
+                new_values[col_index] = new_value;
+            } else {
+                return Err(DBError::Schema(format!("表 '{}' 中不存在列 '{}'", self.name, col_name)));
+            }
+        }
+
+        // 创建新记录
+        let new_record = Record::new(new_values.to_vec());
+
+        // 调用 RecordPageManager 的 replace_record 方法替换原记录
+        page_manager.replace_record(&mut page, id, &new_record)?;
+
+        Ok(())
+    }
     
     /// 获取记录
     pub fn get_record(&self, buffer_manager: &mut BufferManager, id: RecordId) -> Result<Record> {

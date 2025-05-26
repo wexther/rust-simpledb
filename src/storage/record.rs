@@ -303,7 +303,41 @@ impl RecordPageManager {
         
         Ok(record)
     }
-    
+
+    /// 替换记录
+    pub fn replace_record(&mut self, page: &mut Page, id: RecordId, new_record: &Record) -> Result<()> {
+        let slot = id.slot;
+        // 检查槽位是否有效
+        if slot >= self.record_count || !self.slot_bitmap[slot as usize] {
+            return Err(DBError::NotFound(format!("记录槽位 {} 不存在或已删除", slot)));
+        }
+
+        // 序列化新记录
+        let new_record_data = new_record.serialize();
+        let new_record_size = new_record_data.len();
+
+        // 计算更新后的页面头部大小
+        let new_header_size = self.calc_header_size(self.record_count);
+        // 计算页面剩余空间
+        let available_space = page.data().len() - new_header_size;
+
+        // 检查新记录大小是否超出可用空间
+        if new_record_size > available_space {
+            return Err(DBError::IO("页面空间不足，无法替换记录".to_string()));
+        }
+
+        // 获取旧记录的偏移量
+        let old_offset = self.offsets[slot as usize] as usize;
+
+        // 写入新记录数据
+        page.write_data(old_offset, &new_record_data);
+
+        // 更新页面头部信息
+        self.save_to_page(page)?;
+
+        Ok(())
+    }
+
     /// 计算页面头部大小
     fn calc_header_size(&self, record_count: u16) -> usize {
         let bitmap_size = ((record_count + 7) / 8) as usize; // 槽位图大小
