@@ -57,7 +57,7 @@ impl<'a> Executor for DMLExecutor<'a> {
                 // 尝试获取当前数据库
                 if let Ok(current_database) = self.storage.current_database_mut() {
                     // 尝试获取对应的表
-                    if let Ok(table) = current_database.get_table(&table_name) {
+                    if let Ok(table) = current_database.get_table_mut(&table_name) {
                         // 遍历要插入的每一行数据
                         for record in values {
                             // 调用表的 insert_record 方法插入数据
