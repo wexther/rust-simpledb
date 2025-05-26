@@ -4,4 +4,4 @@ pub mod catalog;
 pub mod transaction;
 mod io;
 mod database;
-mod record;
+pub mod record;
