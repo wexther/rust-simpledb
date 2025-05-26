@@ -118,4 +118,31 @@ impl Database {
             Err(DBError::NotFound(format!("表 '{}' 不存在", table_name)))
         }
     }
+
+    /// 删除表中记录的代理方法
+    pub fn delete_record(&mut self, table_name: &str, record_id: super::record::RecordId) -> Result<()> {
+          // 检查表是否存在
+        if let Some(table) = self.tables.get_mut(table_name) {
+            // 获取可变的缓冲区管理器
+            let buffer_manager = self.persistence.buffer_manager_mut();
+            // 调用表的 delete_record 方法删除记录
+            table.delete_record(buffer_manager, record_id)
+        } else {
+            Err(DBError::NotFound(format!("表 '{}' 不存在", table_name)))
+        }
+    }
+
+    /// 更新表中记录的代理方法
+    pub fn update_record(&mut self, table_name: &str, record_id: super::record::RecordId, set_pairs: Vec<(String, super::table::Value)>,
+    ) -> Result<()> {
+        // 检查表是否存在
+        if let Some(table) = self.tables.get_mut(table_name) {
+            // 获取可变的缓冲区管理器
+            let buffer_manager = self.persistence.buffer_manager_mut();
+            // 调用表的 update_record 方法更新记录
+            table.update_record(buffer_manager, record_id, set_pairs)
+        } else {
+            Err(DBError::NotFound(format!("表 '{}' 不存在", table_name)))
+        }
+    }
 }
