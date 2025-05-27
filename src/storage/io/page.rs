@@ -1,6 +1,4 @@
  use std::cmp::{min,max};
-use std::fmt;
-use crate::error::Result;
 
 /// 页面大小（默认4KB，可根据需要调整）
 pub const PAGE_SIZE: usize = 4096;
@@ -9,7 +7,7 @@ pub const PAGE_SIZE: usize = 4096;
 pub type PageId = u32;
 
 /// 页面 - 数据存储的基本单位
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Page {
     /// 页面ID
     id: PageId,
@@ -102,11 +100,5 @@ impl Page {
         self.data.fill(0);
         self.size = 0;
         self.is_dirty = true;
-    }
-}
-
-impl fmt::Debug for Page {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Page {{ id: {}, size: {}, dirty: {} }}", self.id, self.size, self.is_dirty)
     }
 }

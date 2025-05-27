@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::cmp::min;
 use crate::error::{DBError, Result};
 use super::page::{Page, PageId, PAGE_SIZE};
 use super::disk_manager::DiskManager;
