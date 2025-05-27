@@ -25,12 +25,12 @@ impl<'a> Executor for DDLExecutor<'a> {
         match plan {
             QueryPlan::CreateTable { name, columns } => {
                 match self.storage.create_table(name.clone(), columns) {
-                    Ok(_) => Ok(QueryResult::Success(format!("表 '{}' 创建成功", name))),
+                    Ok(_) => Ok(QueryResult::Success),
                     Err(e) => Err(DBError::Schema(e.to_string())),
                 }
             }
             QueryPlan::DropTable { name } => match self.storage.drop_table(&name) {
-                Ok(_) => Ok(QueryResult::Success(format!("表 '{}' 删除成功", name))),
+                Ok(_) => Ok(QueryResult::Success),
                 Err(e) => Err(DBError::Schema(e.to_string())),
             },
             _ => Err(DBError::Schema("不支持的DDL操作".to_string())),
@@ -65,10 +65,7 @@ impl<'a> Executor for DMLExecutor<'a> {
                             )));
                         }
                     }
-                    return Ok(QueryResult::Success(format!(
-                        "表 '{}' 插入成功",
-                        table_name
-                    )));
+                    return Ok(QueryResult::Success);
                 }
                 return Err(DBError::Schema("当前没有选择数据库".to_string()));
             }
@@ -121,10 +118,7 @@ impl<'a> Executor for DMLExecutor<'a> {
                             return Err(DBError::Schema(format!("删除记录失败: {}", e)));
                         }
                     }
-                    return Ok(QueryResult::Success(format!(
-                        "表 '{}' 中符合条件的记录已更新",
-                        table_name
-                    )));
+                    return Ok(QueryResult::Success);
                 }
                 // new code end
                 return Err(DBError::Schema("更新失败".to_string()));
@@ -175,10 +169,7 @@ impl<'a> Executor for DMLExecutor<'a> {
                             return Err(DBError::Schema(format!("删除记录失败: {}", e)));
                         }
                     }
-                    return Ok(QueryResult::Success(format!(
-                        "表 '{}' 中符合条件的记录已删除",
-                        table_name
-                    )));
+                    return Ok(QueryResult::Success);
                 }
                 // new code end
                 Err(DBError::Schema("删除失败".to_string()))

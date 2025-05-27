@@ -49,14 +49,14 @@ impl fmt::Display for ResultSet {
 #[derive(Debug)]
 pub enum QueryResult {
     ResultSet(ResultSet),
-    Success(String),
+    Success,
 }
 
 impl fmt::Display for QueryResult {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             QueryResult::ResultSet(rs) => write!(f, "{}", rs),
-            QueryResult::Success(msg) => write!(f, "{}", msg),
+            QueryResult::Success => Ok(()),
         }
     }
 }
