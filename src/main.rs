@@ -2,7 +2,6 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::env;
 use std::fs;
-use std::process;
 
 // 引入自定义模块
 mod error;
@@ -14,14 +13,7 @@ use error::{DBError, Result};
 use query::QueryProcessor;
 use storage::engine::StorageEngine;
 
-fn main() {
-    if let Err(err) = run() {
-        eprintln!("错误: {}", err);
-        process::exit(1);
-    }
-}
-
-fn run() -> Result<()> {
+fn main() -> Result<()> {
     // 解析命令行参数
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
