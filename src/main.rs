@@ -18,37 +18,30 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    // 原来main函数中的所有逻辑
     let sql_file_path = parse_args()?;
 
-    // 创建并初始化存储引擎，使用默认参数
-    let mut storage_engine = StorageEngine::new(None::<&str>, None)?;
+    let mut storage_engine = StorageEngine::new(None, None)?;
 
-    // 执行SQL文件
     execute_sql_file(&sql_file_path, &mut storage_engine)?;
 
-    // 持久化存储引擎状态
     storage_engine.save()?;
 
     Ok(())
 }
 
-/// 解析命令行参数
 fn parse_args() -> Result<String> {
     let args: Vec<String> = env::args().collect();
-    if args.len() == 2 {
+    if args.len() >= 2 {
         Ok(args[1].clone())
     } else {
-        Err(DBError::Other("用法: simple_db <sql文件>".to_string()))
+        // 可扩充其余用法
+        Err(DBError::Other("用法: simple_db <sql文件> ..".to_string()))
     }
 }
 
-/// 执行SQL文件
 fn execute_sql_file(file_path: &str, storage_engine: &mut StorageEngine) -> Result<()> {
-    // 1. 读取SQL文件
     let sql_content = fs::read_to_string(file_path)?;
 
-    // 2. 解析SQL(Parser)
     let dialect = GenericDialect {};
     let ast_statements = Parser::parse_sql(&dialect, &sql_content)?;
 

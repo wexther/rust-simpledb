@@ -1,14 +1,13 @@
 pub mod executor;
-pub mod optimizer;
 pub mod planner;
 pub mod result;
 
-use sqlparser::ast::Statement;
+use self::executor::{DDLExecutor, DMLExecutor, Executor, QueryExecutor};
+use self::planner::QueryPlanner;
+use self::result::QueryResult;
 use crate::error::Result;
 use crate::storage::engine::StorageEngine;
-use self::planner::QueryPlanner;
-use self::executor::{DDLExecutor, DMLExecutor, QueryExecutor, Executor};
-use self::result::QueryResult;
+use sqlparser::ast::Statement;
 
 /// 查询处理器 - 负责整个查询处理流程
 pub struct QueryProcessor<'a> {
@@ -23,12 +22,12 @@ impl<'a> QueryProcessor<'a> {
             planner: QueryPlanner::new(),
         }
     }
-    
+
     /// 执行SQL语句，返回执行结果
     pub fn execute(&mut self, stmt: Statement) -> Result<QueryResult> {
         // 1. 生成查询计划
         let plan = self.planner.plan(&stmt)?;
-        
+
         // 2. 根据语句类型选择合适的执行器
         match stmt {
             Statement::Query(_) => {

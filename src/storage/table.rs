@@ -284,10 +284,18 @@ impl Table {
     }
 
     /// 修改记录
-    pub fn update_record(&mut self, buffer_manager: &mut BufferManager, id: RecordId, set_pairs: Vec<(String, Value)>) -> Result<()> {
+    pub fn update_record(
+        &mut self,
+        buffer_manager: &mut BufferManager,
+        id: RecordId,
+        set_pairs: Vec<(String, Value)>,
+    ) -> Result<()> {
         // 检查页面 ID 是否属于该表
         if !self.page_ids.contains(&id.page_id) {
-            return Err(DBError::NotFound(format!("页面 {} 不属于表 {}", id.page_id, self.name)));
+            return Err(DBError::NotFound(format!(
+                "页面 {} 不属于表 {}",
+                id.page_id, self.name
+            )));
         }
 
         // 获取可修改的页面
@@ -298,7 +306,7 @@ impl Table {
         let original_record = page_manager.get_record(&page, id.slot)?;
 
         // 复制原记录的值
-        let mut new_values:Vec<Value> = original_record.values().to_vec();
+        let mut new_values: Vec<Value> = original_record.values().to_vec();
 
         // 按照 set_pairs 更新记录值
         for (col_name, new_value) in set_pairs {
@@ -323,7 +331,10 @@ impl Table {
                 //new_values[col_index] = new_value;
                 new_values[col_index] = new_value;
             } else {
-                return Err(DBError::Schema(format!("表 '{}' 中不存在列 '{}'", self.name, col_name)));
+                return Err(DBError::Schema(format!(
+                    "表 '{}' 中不存在列 '{}'",
+                    self.name, col_name
+                )));
             }
         }
 
@@ -335,7 +346,7 @@ impl Table {
 
         Ok(())
     }
-    
+
     /// 获取记录
     pub fn get_record(&self, buffer_manager: &mut BufferManager, id: RecordId) -> Result<Record> {
         if !self.page_ids.contains(&id.page_id) {

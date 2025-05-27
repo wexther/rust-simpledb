@@ -7,48 +7,43 @@ use std::path::{Path, PathBuf};
 
 /// 存储引擎 - 负责数据存储和访问
 pub struct StorageEngine {
-    databases: HashMap<String, Database>, // 存储多个数据库
-    current_database: Option<String>,     // 当前选中的数据库
-    base_dir: PathBuf,                    // 基础数据目录
+    /// 多个数据库
+    databases: HashMap<String, Database>,
+    /// 当前选中的数据库
+    current_database: Option<String>,
+    /// 基础数据目录
+    base_dir: PathBuf,
 }
 
 impl StorageEngine {
     /// 创建并初始化存储引擎
-    /// 
+    ///
     /// # 参数
     /// * `base_dir` - 可选的存储基础目录，如果为None则使用默认目录"data"
     /// * `default_db_name` - 可选的默认数据库名称，如果为None则使用"default"
-    pub fn new<P: AsRef<Path>>(base_dir: Option<P>, default_db_name: Option<&str>) -> Result<Self> {
-        // 确定基础目录和默认数据库名称
-        let base_dir_path = match base_dir {
-            Some(dir) => dir.as_ref().to_path_buf(),
+    pub fn new(base_dir: Option<&Path>, db_name: Option<&str>) -> Result<Self> {
+        let base_dir = match base_dir {
+            Some(dir) => dir.to_path_buf(),
             None => PathBuf::from("data"),
         };
-        
-        let db_name = default_db_name.unwrap_or("default");
-        
-        // 创建存储引擎实例
+        let db_name = db_name.unwrap_or("default");
+
         let mut storage_engine = Self {
             databases: HashMap::new(),
             current_database: None,
-            base_dir: base_dir_path,
+            base_dir,
         };
-        
-        // 从磁盘加载持久化数据
+
         storage_engine.load()?;
-        
-        // 创建默认数据库（如果不存在）
+
         if !storage_engine.has_database(db_name) {
             storage_engine.create_database(db_name.to_string())?;
-            println!("已创建数据库 '{}'", db_name);
         }
-        
-        // 如果没有选中任何数据库，则选择默认数据库
+
         if storage_engine.current_database().is_err() {
             storage_engine.use_database(db_name)?;
-            println!("已切换到数据库 '{}'", db_name);
         }
-        
+
         Ok(storage_engine)
     }
 
@@ -59,9 +54,9 @@ impl StorageEngine {
 
     /// 加载所有数据库
     pub fn load(&mut self) -> Result<()> {
-        // 确保基础目录存在
         if !self.base_dir.exists() {
-            return Ok(());  // 目录不存在，没有数据库可加载
+            std::fs::create_dir_all(&self.base_dir)
+                .map_err(|e| DBError::IO(format!("无法创建数据库目录: {}", e)))?;
         }
 
         // 读取基础目录中的所有子目录
@@ -75,7 +70,8 @@ impl StorageEngine {
             if path.is_dir() {
                 if let Some(db_name) = path.file_name().and_then(|n| n.to_str()) {
                     // 加载数据库
-                    let mut database = Database::new(db_name.to_string(), &self.get_db_path(db_name))?;
+                    let mut database =
+                        Database::new(db_name.to_string(), &self.get_db_path(db_name))?;
                     database.load()?;
                     self.databases.insert(db_name.to_string(), database);
                 }
@@ -87,10 +83,6 @@ impl StorageEngine {
 
     /// 保存所有数据库
     pub fn save(&mut self) -> Result<()> {
-        // 确保基础目录存在
-        std::fs::create_dir_all(&self.base_dir)
-            .map_err(|e| DBError::IO(format!("无法创建数据库目录: {}", e)))?;
-
         // 保存每个数据库
         for database in self.databases.values_mut() {
             database.save()?;

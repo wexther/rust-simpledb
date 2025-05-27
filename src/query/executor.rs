@@ -58,14 +58,24 @@ impl<'a> Executor for DMLExecutor<'a> {
                     for record in values {
                         // 使用database的代理方法插入记录，不需要直接处理buffer_manager
                         if let Err(e) = current_database.insert_record(&table_name, record) {
-                            return Ok(QueryResult::Error(format!("插入数据到表 '{}' 失败: {}", table_name, e)));
+                            return Ok(QueryResult::Error(format!(
+                                "插入数据到表 '{}' 失败: {}",
+                                table_name, e
+                            )));
                         }
                     }
-                    return Ok(QueryResult::Success(format!("表 '{}' 插入成功", table_name)));
+                    return Ok(QueryResult::Success(format!(
+                        "表 '{}' 插入成功",
+                        table_name
+                    )));
                 }
                 return Ok(QueryResult::Error("当前没有选择数据库".to_string()));
             }
-            QueryPlan::Update { table_name, set_pairs, conditions } => {
+            QueryPlan::Update {
+                table_name,
+                set_pairs,
+                conditions,
+            } => {
                 // 实现更新操作
                 // new code
                 // 尝试获取当前数据库
@@ -77,9 +87,12 @@ impl<'a> Executor for DMLExecutor<'a> {
                     }
                 }
                 // new code end
-                return Ok(QueryResult::Error("更新失败".to_string()))
+                return Ok(QueryResult::Error("更新失败".to_string()));
             }
-            QueryPlan::Delete { table_name, conditions } => {
+            QueryPlan::Delete {
+                table_name,
+                conditions,
+            } => {
                 // 实现删除操作
                 // new code
                 // 尝试获取当前数据库
