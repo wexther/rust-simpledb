@@ -58,12 +58,7 @@ impl<'a> Executor for DMLExecutor<'a> {
                     // 遍历要插入的每一行数据
                     for record in values {
                         // 使用database的代理方法插入记录，不需要直接处理buffer_manager
-                        if let Err(e) = current_database.insert_record(&table_name, record) {
-                            return Err(DBError::Schema(format!(
-                                "插入数据到表 '{}' 失败: {}",
-                                table_name, e
-                            )));
-                        }
+                        todo!();
                     }
                     return Ok(QueryResult::Success);
                 }

@@ -14,14 +14,13 @@ pub enum QueryPlan {
         name: String,
     },
     Select {
-        tables: Vec<TableReference>,   // 替换单个table_name
-        columns: Vec<ColumnReference>, // 增强列引用
-        joins: Vec<JoinClause>,        // 添加表连接信息
-        conditions: Option<Condition>,
+        table_name: String,            // 替换为单个表名
+        columns: Vec<String>,          // 保留列引用
+        conditions: Option<Condition>, // 保留条件
     },
     Insert {
         table_name: String,
-        values: Vec<Vec<Value>>,
+        values: Vec<Vec<(String, Value)>>,
     },
     Update {
         table_name: String,
@@ -346,22 +345,7 @@ impl QueryPlanner {
                 })
             }
             Statement::Query(query) => {
-                // 解析SELECT查询
-                // ...
-                let _ = query;
-                Ok(QueryPlan::Select {
-                    tables: vec![TableReference {
-                        name: "example".to_string(),
-                        alias: None,
-                    }],
-                    columns: vec![ColumnReference {
-                        table: None,
-                        name: "*".to_string(),
-                        alias: None,
-                    }],
-                    joins: vec![],
-                    conditions: None,
-                })
+                todo!();
             }
             // 数据库操作解析
             Statement::CreateSchema { schema_name, .. } => Ok(QueryPlan::CreateDatabase {
@@ -386,116 +370,4 @@ impl QueryPlanner {
         let _ = cols;
         Ok(vec![])
     }
-
-    fn extract_tables_and_joins(
-        &self,
-        query: &sqlparser::ast::Query,
-    ) -> Result<(Vec<TableReference>, Vec<JoinClause>)> {
-        if let sqlparser::ast::SetExpr::Select(select) = &*query.body {
-            let mut tables = Vec::new();
-            let mut joins = Vec::new();
-
-            // 处理FROM子句中的表
-            for table_with_joins in &select.from {
-                // 处理主表
-                let main_table = self.extract_table_reference(&table_with_joins.relation)?;
-                tables.push(main_table);
-
-                // 处理JOIN
-                for join in &table_with_joins.joins {
-                    let join_type = match join.join_operator {
-                        sqlparser::ast::JoinOperator::Inner(_) => JoinType::Inner,
-                        sqlparser::ast::JoinOperator::LeftOuter(_) => JoinType::Left,
-                        sqlparser::ast::JoinOperator::RightOuter(_) => JoinType::Right,
-                        sqlparser::ast::JoinOperator::FullOuter(_) => JoinType::Full,
-                        sqlparser::ast::JoinOperator::CrossJoin => JoinType::Cross,
-                        _ => return Err(DBError::Parse("不支持的连接类型".to_string())),
-                    };
-
-                    let join_table = self.extract_table_reference(&join.relation)?;
-
-                    // 提取JOIN条件
-                    let condition = match &join.join_operator {
-                        sqlparser::ast::JoinOperator::Inner(constraint)
-                        | sqlparser::ast::JoinOperator::LeftOuter(constraint)
-                        | sqlparser::ast::JoinOperator::RightOuter(constraint)
-                        | sqlparser::ast::JoinOperator::FullOuter(constraint) => match constraint {
-                            sqlparser::ast::JoinConstraint::On(expr) => {
-                                Some(Condition::from_expr(expr)?)
-                            }
-                            sqlparser::ast::JoinConstraint::Using(_) => {
-                                return Err(DBError::Parse("目前不支持USING连接条件".to_string()));
-                            }
-                            sqlparser::ast::JoinConstraint::Natural => {
-                                return Err(DBError::Parse("目前不支持NATURAL JOIN".to_string()));
-                            }
-                            sqlparser::ast::JoinConstraint::None => None,
-                        },
-                        _ => None,
-                    };
-
-                    joins.push(JoinClause {
-                        join_type,
-                        table: join_table,
-                        condition,
-                    });
-                }
-            }
-
-            return Ok((tables, joins));
-        }
-
-        Err(DBError::Parse("不支持的查询类型".to_string()))
-    }
-
-    fn extract_table_reference(
-        &self,
-        table_factor: &sqlparser::ast::TableFactor,
-    ) -> Result<TableReference> {
-        match table_factor {
-            sqlparser::ast::TableFactor::Table { name, alias, .. } => Ok(TableReference {
-                name: name.to_string(),
-                alias: alias.as_ref().map(|a| a.name.value.clone()),
-            }),
-            _ => Err(DBError::Parse("不支持的表引用类型".to_string())),
-        }
-    }
-
-    fn extract_column_references(
-        &self,
-        query: &sqlparser::ast::Query,
-    ) -> Result<Vec<ColumnReference>> {
-        // 类似于之前的extract_columns实现，但扩展为支持表前缀
-        // ...
-        todo!();
-    }
-}
-
-// 表引用结构，支持表别名
-pub struct TableReference {
-    pub name: String,
-    pub alias: Option<String>,
-}
-
-// 列引用结构，支持表前缀和列别名
-pub struct ColumnReference {
-    pub table: Option<String>, // 表名或别名
-    pub name: String,
-    pub alias: Option<String>,
-}
-
-// 表连接子句
-pub struct JoinClause {
-    pub join_type: JoinType,
-    pub table: TableReference,
-    pub condition: Option<Condition>,
-}
-
-// 连接类型枚举
-pub enum JoinType {
-    Inner,
-    Left,
-    Right,
-    Full,
-    Cross,
 }
