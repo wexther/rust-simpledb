@@ -53,7 +53,7 @@ impl StorageEngine {
     }
 
     /// 加载所有数据库
-    pub fn load(&mut self) -> Result<()> {
+    fn load(&mut self) -> Result<()> {
         if !self.base_dir.exists() {
             std::fs::create_dir_all(&self.base_dir)
                 .map_err(|e| DBError::IO(format!("无法创建数据库目录: {}", e)))?;
@@ -213,4 +213,13 @@ impl StorageEngine {
     let table = database.get_table(name)?;
     Ok(table.columns().to_vec())
 }
+}
+
+// 实现 Drop trait 以在存储引擎被销毁时自动保存数据
+impl Drop for StorageEngine {
+    fn drop(&mut self) {
+        if let Err(e) = self.save() {
+            eprintln!("保存存储引擎时出错: {}", e);
+        }
+    }
 }
