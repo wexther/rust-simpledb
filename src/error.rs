@@ -5,19 +5,19 @@ pub type Result<T> = result::Result<T, DBError>;
 
 #[derive(Error, Debug)]
 pub enum DBError {
-    #[error("IO错误: {0}")]
+    #[error("{0}")]
     IO(String),
 
-    #[error("解析错误: {0}")]
+    #[error("{0}")]
     Parse(String),
 
-    #[error("模式错误: {0}")]
+    #[error("{0}")]
     Schema(String),
 
-    #[error("执行错误: {0}")]
+    #[error("{0}")]
     Execution(String),
 
-    #[error("资源未找到: {0}")]
+    #[error("{0}")]
     NotFound(String),
 
     #[error("{0}")]
