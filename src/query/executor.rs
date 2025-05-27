@@ -112,18 +112,40 @@ impl<'a> QueryExecutor<'a> {
 impl<'a> Executor for QueryExecutor<'a> {
     fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
         match plan {
-            QueryPlan::Select {
-                table_name,
-                columns,
-                conditions,
-            } => {
-                // 简单的示例实现
-                let _ = (table_name, conditions);
-                let result = ResultSet {
-                    columns,
-                    rows: vec![], // 这里应该从存储引擎中获取实际数据
-                };
-                Ok(QueryResult::ResultSet(result))
+            QueryPlan::Select {table_name,columns,conditions,} => {
+                // 1. 根据 table_name 获取 table 的所有记录
+                if let Ok(current_database) = self.storage.current_database_mut() {
+                    if let Ok(table) = current_database.get_table(&table_name) {
+                        let mut all_records = Vec::new();
+                        // 假设 Table 有一个 get_all_records 方法来获取所有记录
+                        if let Ok(records) = current_database.get_all_records(&table_name) {
+                            all_records = records;
+                        }
+
+                        // 2. 根据 conditions 中的 evaluate 方法判断每一条记录是否满足，把所有满足的记录放到一个 vec 中
+                        let mut matched_records = Vec::new();
+                        for record in all_records {
+                            if let Some(cond) = &conditions {
+                                if let Ok(_) = cond.evaluate(&record, table) {
+                                    matched_records.push(record);
+                                }
+                            } else {
+                                // 如果没有条件，所有记录都满足
+                                matched_records.push(record);
+                            }
+                        }
+
+                        // 3. 构造 result（其中 columns 为传入的 columns，rows 为刚刚构造的记录集合）并返回
+                        let rows: Vec<Vec<String>> = Vec::new(); /////////// to do
+
+                        let result = ResultSet {
+                            columns,
+                            rows,
+                        };
+                        return Ok(QueryResult::ResultSet(result));
+                    }
+                }
+                Ok(QueryResult::Error(format!("表 '{}' 不存在或未选择数据库", table_name)))
             }
             _ => Ok(QueryResult::Error("不支持的查询操作".to_string())),
         }

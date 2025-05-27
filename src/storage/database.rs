@@ -145,4 +145,32 @@ impl Database {
             Err(DBError::NotFound(format!("表 '{}' 不存在", table_name)))
         }
     }
+
+    /// 获取表中一条记录的代理方法
+    pub fn get_record(&mut self, table_name: &str, record_id: super::record::RecordId) -> Result<super::record::Record> {
+        // 检查表是否存在
+        let table = self.tables.get(table_name).ok_or_else(|| {
+            DBError::NotFound(format!("表 '{}' 不存在", table_name))
+        })?;
+
+        // 获取缓冲区管理器
+        let buffer_manager = self.persistence.buffer_manager_mut();
+
+        // 调用表的 get_record 方法获取记录
+        table.get_record(buffer_manager, record_id)
+    }
+
+    /// 获取表中全部记录的代理方法
+    pub fn get_all_records(&mut self, table_name: &str) -> Result<Vec<super::record::Record>> {
+        // 检查表是否存在
+        let table = self.tables.get(table_name).ok_or_else(|| {
+            DBError::NotFound(format!("表 '{}' 不存在", table_name))
+        })?;
+
+        // 获取缓冲区管理器
+        let buffer_manager = self.persistence.buffer_manager_mut();
+
+        // 调用表的 get_all_records 方法获取所有记录
+        table.get_all_records(buffer_manager)
+    }
 }
