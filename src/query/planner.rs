@@ -194,13 +194,12 @@ impl Condition {
     }
 
     /// 计算表达式的值
-    fn evaluate_expr(expr: &Expr, record: &Record, table: &Table) -> Result<Value> {
+    fn evaluate_expr(expr: &Expr, record: &Record, columns: &[ColumnDef]) -> Result<Value> {
         match expr {
             Expr::Identifier(ident) => {
                 // 从记录中获取列值
                 let column_name = ident.value.clone();
-                let column_idx = table
-                    .columns()
+                let column_idx = columns
                     .iter()
                     .position(|col| col.name == column_name)
                     .ok_or_else(|| DBError::Schema(format!("列 '{}' 不存在", column_name)))?;
@@ -247,11 +246,11 @@ impl Condition {
     }
 
     /// 评估条件是否满足
-    pub fn evaluate(&self, record: &Record, table: &Table) -> Result<bool> {
+    pub fn evaluate(&self, record: &Record, columns: &[ColumnDef]) -> Result<bool> {
         match self {
             Condition::Compare { left, op, right } => {
-                let left_val = Self::evaluate_expr(left, record, table)?;
-                let right_val = Self::evaluate_expr(right, record, table)?;
+                let left_val = Self::evaluate_expr(left, record, columns)?;
+                let right_val = Self::evaluate_expr(right, record, columns)?;
 
                 match op {
                     CompareOperator::Eq => left_val.eq(&right_val),
@@ -267,34 +266,34 @@ impl Condition {
             Condition::Logical { left, op, right } => {
                 match op {
                     LogicalOperator::And => {
-                        let left_res = left.evaluate(record, table)?;
+                        let left_res = left.evaluate(record, columns)?;
                         if !left_res {
                             return Ok(false); // 短路计算
                         }
-                        right.evaluate(record, table)
+                        right.evaluate(record, columns)
                     }
                     LogicalOperator::Or => {
-                        let left_res = left.evaluate(record, table)?;
+                        let left_res = left.evaluate(record, columns)?;
                         if left_res {
                             return Ok(true); // 短路计算
                         }
-                        right.evaluate(record, table)
+                        right.evaluate(record, columns)
                     }
                 }
             }
 
             Condition::Unary { op, expr } => match op {
                 UnaryOperator::IsNull => {
-                    let val = Self::evaluate_expr(expr, record, table)?;
+                    let val = Self::evaluate_expr(expr, record, columns)?;
                     Ok(val.is_null())
                 }
                 UnaryOperator::NotNull => {
-                    let val = Self::evaluate_expr(expr, record, table)?;
+                    let val = Self::evaluate_expr(expr, record, columns)?;
                     Ok(!val.is_null())
                 }
                 UnaryOperator::Not => {
                     let sub_cond = Condition::from_expr(expr)?;
-                    let res = sub_cond.evaluate(record, table)?;
+                    let res = sub_cond.evaluate(record, columns)?;
                     Ok(!res)
                 }
             },

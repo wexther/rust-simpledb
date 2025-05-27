@@ -207,4 +207,10 @@ impl StorageEngine {
         let database = self.current_database_mut()?;
         database.get_table_mut(name)
     }
+    
+    pub fn get_table_columns(&self, name: &str) -> Result<Vec<super::table::ColumnDef>> {
+    let database = self.current_database()?;
+    let table = database.get_table(name)?;
+    Ok(table.columns().to_vec())
+}
 }
