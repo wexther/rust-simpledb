@@ -5,12 +5,12 @@ pub mod record;
 pub mod table;
 pub mod transaction;
 
+use crate::error::{DBError, Result};
 use catalog::Catalog;
 use database::Database;
-use table::{Table, ColumnDef};
-use crate::error::{DBError, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use table::{ColumnDef, Table};
 
 /// 存储引擎 - 负责数据存储和访问
 pub struct StorageEngine {
@@ -191,11 +191,7 @@ impl StorageEngine {
     }
 
     // 代理方法 - 转发到当前数据库
-    pub fn create_table(
-        &mut self,
-        name: String,
-        columns: Vec<ColumnDef>,
-    ) -> Result<()> {
+    pub fn create_table(&mut self, name: String, columns: Vec<ColumnDef>) -> Result<()> {
         let database = self.current_database_mut()?;
         database.create_table(name, columns)
     }
@@ -214,12 +210,12 @@ impl StorageEngine {
         let database = self.current_database_mut()?;
         database.get_table_mut(name)
     }
-    
+
     pub fn get_table_columns(&self, name: &str) -> Result<Vec<ColumnDef>> {
-    let database = self.current_database()?;
-    let table = database.get_table(name)?;
-    Ok(table.columns().to_vec())
-}
+        let database = self.current_database()?;
+        let table = database.get_table(name)?;
+        Ok(table.columns().to_vec())
+    }
 }
 
 // 实现 Drop trait 以在存储引擎被销毁时自动保存数据

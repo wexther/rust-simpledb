@@ -5,7 +5,7 @@ pub mod result;
 use self::executor::{DDLExecutor, DMLExecutor, Executor, QueryExecutor};
 use self::planner::QueryPlanner;
 use self::result::QueryResult;
-use crate::error::Result;
+use crate::error::{DBError, Result};
 use crate::storage::StorageEngine;
 use sqlparser::ast::Statement;
 
@@ -42,7 +42,7 @@ impl<'a> QueryProcessor<'a> {
                 let mut executor = DMLExecutor::new(self.storage);
                 executor.execute(plan)
             }
-            _ => Ok(QueryResult::Error(format!("不支持的语句类型: {:?}", stmt))),
+            _ => Err(DBError::Schema(format!("不支持的语句类型: {:?}", stmt))),
         }
     }
 }

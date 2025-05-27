@@ -50,7 +50,6 @@ impl fmt::Display for ResultSet {
 pub enum QueryResult {
     ResultSet(ResultSet),
     Success(String),
-    Error(String),
 }
 
 impl fmt::Display for QueryResult {
@@ -58,7 +57,6 @@ impl fmt::Display for QueryResult {
         match self {
             QueryResult::ResultSet(rs) => write!(f, "{}", rs),
             QueryResult::Success(msg) => write!(f, "{}", msg),
-            QueryResult::Error(msg) => write!(f, "Error: {}", msg),
         }
     }
 }
