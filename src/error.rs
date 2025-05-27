@@ -1,29 +1,37 @@
-use std::fmt;
 use std::result;
+use thiserror::Error;
 
-#[derive(Debug)]
+pub type Result<T> = result::Result<T, DBError>;
+
+#[derive(Error, Debug)]
 pub enum DBError {
-    Parse(String),
-    Schema(String),
-    Execution(String),
+    #[error("{0}")]
     IO(String),
+
+    #[error("{0}")]
+    Parse(String),
+
+    #[error("{0}")]
+    Schema(String),
+
+    #[error("{0}")]
+    Execution(String),
+
+    #[error("{0}")]
     NotFound(String),
+
+    #[error("{0}")]
     Other(String),
 }
 
-impl fmt::Display for DBError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            DBError::Parse(msg) => write!(f, "解析错误: {}", msg),
-            DBError::Schema(msg) => write!(f, "模式错误: {}", msg),
-            DBError::Execution(msg) => write!(f, "执行错误: {}", msg),
-            DBError::IO(msg) => write!(f, "IO错误: {}", msg),
-            DBError::NotFound(msg) => write!(f, "未找到: {}", msg),
-            DBError::Other(msg) => write!(f, "{}", msg),
-        }
+impl From<sqlparser::parser::ParserError> for DBError {
+    fn from(err: sqlparser::parser::ParserError) -> Self {
+        DBError::Parse(err.to_string())
     }
 }
 
-impl std::error::Error for DBError {}
-
-pub type Result<T> = result::Result<T, DBError>;
+impl From<std::io::Error> for DBError {
+    fn from(err: std::io::Error) -> Self {
+        DBError::IO(err.to_string())
+    }
+}
