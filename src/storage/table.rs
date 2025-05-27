@@ -288,7 +288,7 @@ impl Table {
         &mut self,
         buffer_manager: &mut BufferManager,
         id: RecordId,
-        set_pairs: Vec<(String, Value)>,
+        set_pairs: &Vec<(String, Value)>,
     ) -> Result<()> {
         // 检查页面 ID 是否属于该表
         if !self.page_ids.contains(&id.page_id) {
@@ -311,7 +311,7 @@ impl Table {
         // 按照 set_pairs 更新记录值
         for (col_name, new_value) in set_pairs {
             // 查找列的索引
-            if let Some(col_index) = self.columns.iter().position(|col| col.name == col_name) {
+            if let Some(col_index) = self.columns.iter().position(|col| &col.name == col_name) {
                 let col_def = &self.columns[col_index];
 
                 // 验证新值的数据类型是否与列定义相符
@@ -329,7 +329,7 @@ impl Table {
 
                 // 更新记录中的值
                 //new_values[col_index] = new_value;
-                new_values[col_index] = new_value;
+                new_values[col_index] = new_value.clone();
             } else {
                 return Err(DBError::Schema(format!(
                     "表 '{}' 中不存在列 '{}'",
