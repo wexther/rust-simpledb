@@ -26,7 +26,7 @@ impl PersistenceManager {
         let data_file = db_dir.join("data.db");
         
         // 创建缓冲池管理器
-        let buffer_manager = BufferManager::new(data_file.to_str().unwrap())?;
+        let buffer_manager = BufferManager::new(data_file)?;
         
         Ok(Self {
             db_dir,

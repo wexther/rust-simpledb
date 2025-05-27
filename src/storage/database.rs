@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use crate::error::{DBError, Result};
 use super::table::{Table, ColumnDef};
 use super::catalog::Catalog;
@@ -17,8 +18,9 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(name: String, db_dir: &str) -> Result<Self> {
-        let persistence = PersistenceManager::new(format!("{}/{}", db_dir, name))?;
+    pub fn new<P: AsRef<Path>>(name: String, db_path: P) -> Result<Self> {
+        let db_path = db_path.as_ref().to_path_buf();
+        let persistence = PersistenceManager::new(&db_path)?;
         let catalog = persistence.load_metadata(&name)?;
         
         Ok(Self {
@@ -97,6 +99,11 @@ impl Database {
     
     /// 保存数据库
     pub fn save(&mut self) -> Result<()> {
+        // 更新目录中的页ID列表
+        for (table_name, table) in &self.tables {
+            self.catalog.update_table_page_ids(table_name, table.page_ids().to_vec())?;
+        }
+        
         // 保存元数据
         self.persistence.save_metadata(&self.name, &self.catalog)?;
         

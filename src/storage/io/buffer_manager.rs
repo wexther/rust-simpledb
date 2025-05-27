@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::cmp::min;
 use crate::error::{DBError, Result};
 use super::page::{Page, PageId, PAGE_SIZE};
@@ -20,7 +21,7 @@ pub struct BufferManager {
 }
 
 impl BufferManager {
-    pub fn new(db_file_path: &str) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(db_file_path: P) -> Result<Self> {
         Ok(Self {
             disk_manager: DiskManager::new(db_file_path)?,
             pages: HashMap::new(),
@@ -77,7 +78,9 @@ impl BufferManager {
         Ok(page_id)
     }
     
-    /// 将页面钉在缓冲池中（防止被置换出去）
+    /**
+    将页面钉在缓冲池中（防止被置换出去）
+    */
     pub fn pin_page(&mut self, page_id: PageId) -> Result<()> {
         if !self.pages.contains_key(&page_id) {
             self.load_page(page_id)?;
