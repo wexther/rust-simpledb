@@ -9,7 +9,7 @@ mod storage;
 
 use error::{DBError, Result};
 use query::QueryProcessor;
-use storage::engine::StorageEngine;
+use storage::StorageEngine;
 
 fn main() {
     if let Err(e) = run() {
@@ -45,7 +45,7 @@ fn execute_sql_file(file_path: &str, storage_engine: &mut StorageEngine) -> Resu
     let dialect = GenericDialect {};
     let ast_statements = Parser::parse_sql(&dialect, &sql_content)?;
 
-    // 3. 创建查询处理器(Query Processing) - 现在传递引用而非所有权
+    // 3. 创建查询处理器(Query Processing)
     let mut query_processor = QueryProcessor::new(storage_engine);
 
     // 4. 执行每条语句并输出结果

@@ -6,7 +6,7 @@ use self::executor::{DDLExecutor, DMLExecutor, Executor, QueryExecutor};
 use self::planner::QueryPlanner;
 use self::result::QueryResult;
 use crate::error::Result;
-use crate::storage::engine::StorageEngine;
+use crate::storage::StorageEngine;
 use sqlparser::ast::Statement;
 
 /// 查询处理器 - 负责整个查询处理流程
