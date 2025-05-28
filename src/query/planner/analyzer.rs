@@ -1,0 +1,371 @@
+use crate::error::{DBError, Result};
+use crate::storage::record::Record;
+use crate::storage::table::{ColumnDef, DataType, Table, Value};
+use sqlparser::ast::{self, CharacterLength};
+use std::fmt;
+
+/// 表示查询条件的结构
+#[derive(Clone, Debug)]
+pub enum Condition {
+    // 比较操作
+    Compare {
+        left: Box<ast::Expr>,
+        op: CompareOperator,
+        right: Box<ast::Expr>,
+    },
+    // 逻辑操作
+    Logical {
+        left: Box<Condition>,
+        op: LogicalOperator,
+        right: Box<Condition>,
+    },
+    // 单操作数条件
+    Unary {
+        op: UnaryOperator,
+        expr: Box<ast::Expr>,
+    },
+    // 常量条件（true/false）
+    Constant(bool),
+}
+
+/// 比较操作符
+#[derive(Clone, Debug, PartialEq)]
+pub enum CompareOperator {
+    Eq,    // 等于
+    NotEq, // 不等于
+    Lt,    // 小于
+    LtEq,  // 小于等于
+    Gt,    // 大于
+    GtEq,  // 大于等于
+    In,    // 在集合中
+}
+
+/// 逻辑操作符
+#[derive(Clone, Debug, PartialEq)]
+pub enum LogicalOperator {
+    And,
+    Or,
+}
+
+/// 单操作数操作符
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnaryOperator {
+    Not,     // NOT
+    IsNull,  // IS NULL
+    NotNull, // IS NOT NULL
+}
+
+impl Condition {
+    /// 创建一个"总是真"的条件
+    pub fn always_true() -> Self {
+        Condition::Constant(true)
+    }
+
+    /// 创建一个"总是假"的条件
+    pub fn always_false() -> Self {
+        Condition::Constant(false)
+    }
+
+    /// 评估条件是否满足
+    pub fn evaluate(&self, record: &Record, columns: &[ColumnDef]) -> Result<bool> {
+        match self {
+            Condition::Compare { left, op, right } => {
+                let left_val = QueryAnalyzer::evaluate_expr(left, record, columns)?;
+                let right_val = QueryAnalyzer::evaluate_expr(right, record, columns)?;
+
+                match op {
+                    CompareOperator::Eq => left_val.eq(&right_val),
+                    CompareOperator::NotEq => left_val.ne(&right_val),
+                    CompareOperator::Lt => left_val.lt(&right_val),
+                    CompareOperator::LtEq => left_val.le(&right_val),
+                    CompareOperator::Gt => left_val.gt(&right_val),
+                    CompareOperator::GtEq => left_val.ge(&right_val),
+                    CompareOperator::In => Err(DBError::Parse("IN操作符暂不支持".to_string())),
+                }
+            }
+
+            Condition::Logical { left, op, right } => {
+                match op {
+                    LogicalOperator::And => {
+                        let left_res = left.evaluate(record, columns)?;
+                        if !left_res {
+                            return Ok(false); // 短路计算
+                        }
+                        right.evaluate(record, columns)
+                    }
+                    LogicalOperator::Or => {
+                        let left_res = left.evaluate(record, columns)?;
+                        if left_res {
+                            return Ok(true); // 短路计算
+                        }
+                        right.evaluate(record, columns)
+                    }
+                }
+            }
+
+            Condition::Unary { op, expr } => match op {
+                UnaryOperator::IsNull => {
+                    let val = QueryAnalyzer::evaluate_expr(expr, record, columns)?;
+                    Ok(val.is_null())
+                }
+                UnaryOperator::NotNull => {
+                    let val = QueryAnalyzer::evaluate_expr(expr, record, columns)?;
+                    Ok(!val.is_null())
+                }
+                UnaryOperator::Not => {
+                    let sub_cond = QueryAnalyzer::analyze_condition(expr)?;
+                    let res = sub_cond.evaluate(record, columns)?;
+                    Ok(!res)
+                }
+            },
+
+            Condition::Constant(val) => Ok(*val),
+        }
+    }
+}
+
+// 为Condition实现Display特性，方便调试
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Condition::Compare { left, op, right } => {
+                write!(f, "{:?} {:?} {:?}", left, op, right)
+            }
+            Condition::Logical { left, op, right } => {
+                write!(f, "({}) {:?} ({})", left, op, right)
+            }
+            Condition::Unary { op, expr } => {
+                write!(f, "{:?} {:?}", op, expr)
+            }
+            Condition::Constant(val) => {
+                write!(f, "{}", val)
+            }
+        }
+    }
+}
+
+/// 查询分析器 - 负责解析SQL AST并转换为内部结构
+pub struct QueryAnalyzer;
+
+impl QueryAnalyzer {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// 从SQL AST表达式转换为条件
+    pub fn analyze_condition(expr: &ast::Expr) -> Result<Condition> {
+        match expr {
+            ast::Expr::BinaryOp { left, op, right } => {
+                match op {
+                    // 比较操作符
+                    ast::BinaryOperator::Eq => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::Eq,
+                        right: Box::new(*right.clone()),
+                    }),
+                    ast::BinaryOperator::NotEq => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::NotEq,
+                        right: Box::new(*right.clone()),
+                    }),
+                    ast::BinaryOperator::Lt => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::Lt,
+                        right: Box::new(*right.clone()),
+                    }),
+                    ast::BinaryOperator::LtEq => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::LtEq,
+                        right: Box::new(*right.clone()),
+                    }),
+                    ast::BinaryOperator::Gt => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::Gt,
+                        right: Box::new(*right.clone()),
+                    }),
+                    ast::BinaryOperator::GtEq => Ok(Condition::Compare {
+                        left: Box::new(*left.clone()),
+                        op: CompareOperator::GtEq,
+                        right: Box::new(*right.clone()),
+                    }),
+
+                    // 逻辑操作符
+                    ast::BinaryOperator::And => Ok(Condition::Logical {
+                        left: Box::new(Self::analyze_condition(left)?),
+                        op: LogicalOperator::And,
+                        right: Box::new(Self::analyze_condition(right)?),
+                    }),
+                    ast::BinaryOperator::Or => Ok(Condition::Logical {
+                        left: Box::new(Self::analyze_condition(left)?),
+                        op: LogicalOperator::Or,
+                        right: Box::new(Self::analyze_condition(right)?),
+                    }),
+
+                    _ => Err(DBError::Parse(format!("不支持的二元操作符: {:?}", op))),
+                }
+            }
+
+            // 处理IS NULL和IS NOT NULL
+            ast::Expr::IsNull(expr) => Ok(Condition::Unary {
+                op: UnaryOperator::IsNull,
+                expr: Box::new(*expr.clone()),
+            }),
+            ast::Expr::IsNotNull(expr) => Ok(Condition::Unary {
+                op: UnaryOperator::NotNull,
+                expr: Box::new(*expr.clone()),
+            }),
+
+            // 处理NOT条件
+            ast::Expr::UnaryOp {
+                op: ast::UnaryOperator::Not,
+                expr,
+            } => Ok(Condition::Unary {
+                op: UnaryOperator::Not,
+                expr: Box::new(*expr.clone()),
+            }),
+
+            // 常量boolean条件
+            ast::Expr::Value(value) => {
+                if let ast::Value::Boolean(b) = &value.value {
+                    Ok(Condition::Constant(*b))
+                } else {
+                    Err(DBError::Parse(format!("不支持的常量值: {:?}", value)))
+                }
+            }
+
+            // 其他情况，比如单个标识符，可能需要特殊处理
+            _ => Err(DBError::Parse(format!("不支持的条件表达式: {:?}", expr))),
+        }
+    }
+
+    /// 计算表达式的值
+    pub fn evaluate_expr(
+        expr: &ast::Expr,
+        record: &Record,
+        columns: &[ColumnDef],
+    ) -> Result<Value> {
+        match expr {
+            ast::Expr::Identifier(ident) => {
+                // 从记录中获取列值
+                let column_name = ident.value.clone();
+                let column_idx = columns
+                    .iter()
+                    .position(|col| col.name == column_name)
+                    .ok_or_else(|| DBError::Schema(format!("列 '{}' 不存在", column_name)))?;
+
+                Ok(record.values()[column_idx].clone())
+            }
+
+            ast::Expr::Value(value_with_span) => {
+                // 转换SQL值到我们的Value类型
+                match &value_with_span.value {
+                    ast::Value::Number(n, _) => {
+                        if n.contains('.') {
+                            Ok(Value::Float(n.parse().map_err(|e| {
+                                DBError::Parse(format!("无法解析浮点数: {}", e))
+                            })?))
+                        } else {
+                            let parsed_int: i64 = n
+                                .parse()
+                                .map_err(|e| DBError::Parse(format!("无法解析整数: {}", e)))?;
+
+                            // 检查i32范围
+                            if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
+                                return Err(DBError::Parse("整数超出i32范围".to_string()));
+                            }
+
+                            Ok(Value::Int(parsed_int as i32))
+                        }
+                    }
+                    ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
+                        Ok(Value::String(s.clone()))
+                    }
+                    ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
+                    ast::Value::Null => Ok(Value::Null),
+                    _ => Err(DBError::Parse(format!(
+                        "不支持的常量值: {:?}",
+                        value_with_span
+                    ))),
+                }
+            }
+
+            // 其他表达式类型...
+            _ => Err(DBError::Parse(format!("不支持的表达式: {:?}", expr))),
+        }
+    }
+
+    /// 将SQL表达式转换为值
+    pub fn analyze_expr_to_value(&self, expr: &ast::Expr) -> Result<Value> {
+        match expr {
+            ast::Expr::Value(value) => match &value.value {
+                ast::Value::Number(n, _) => {
+                    if n.contains('.') {
+                        Ok(Value::Float(n.parse().map_err(|e| {
+                            DBError::Parse(format!("无法解析浮点数: {}", e))
+                        })?))
+                    } else {
+                        let parsed_int: i64 = n
+                            .parse()
+                            .map_err(|e| DBError::Parse(format!("无法解析整数: {}", e)))?;
+
+                        if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
+                            return Err(DBError::Parse("整数超出i32范围".to_string()));
+                        }
+
+                        Ok(Value::Int(parsed_int as i32))
+                    }
+                }
+                ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
+                    Ok(Value::String(s.clone()))
+                }
+                ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
+                ast::Value::Null => Ok(Value::Null),
+                _ => Err(DBError::Parse(format!("不支持的值类型: {:?}", value))),
+            },
+            _ => Err(DBError::Parse(format!("不支持的表达式: {:?}", expr))),
+        }
+    }
+
+    /// 解析列定义
+    pub fn analyze_column_definitions(&self, cols: &[ast::ColumnDef]) -> Result<Vec<ColumnDef>> {
+        let mut columns = Vec::with_capacity(cols.len());
+
+        for col in cols {
+            // 获取列名
+            let name = col.name.to_string();
+            // 获取列的数据类型
+            let data_type = match col.data_type {
+                ast::DataType::Int(size) => DataType::Int(size.unwrap_or(32)),
+                ast::DataType::Varchar(_) => {
+                    todo!()
+                }
+                _ => return Err(DBError::Parse(format!("不支持的列类型: {:?}", col))),
+            };
+            let nullable = col.options.iter().any(|opt| {
+                matches!(opt.option, ast::ColumnOption::Null | ast::ColumnOption::NotNull)
+            });
+            let is_primary_key = true;
+            todo!();
+            columns.push(ColumnDef { name, data_type , nullable, is_primary_key});
+        }
+
+        Ok(columns)
+    }
+
+    /// 解析SELECT查询
+    pub fn analyze_select(
+        &self,
+        query: &ast::Query,
+    ) -> Result<(String, Vec<String>, Option<Condition>)> {
+        todo!();
+    }
+
+    /// 解析INSERT语句
+    pub fn analyze_insert(
+        &self,
+        insert: &ast::Insert,
+    ) -> Result<(String, Vec<String>, Vec<Vec<(String, Value)>>)> {
+        // todo!() 实现保持不变
+        todo!();
+    }
+}

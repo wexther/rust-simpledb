@@ -16,9 +16,9 @@ pub struct ColumnDef {
 }
 
 /// 表示数据类型的枚举
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DataType {
-    Int,
+    Int(u64),
     Varchar(usize),
 }
 
@@ -316,7 +316,7 @@ impl Table {
 
                 // 验证新值的数据类型是否与列定义相符
                 match (&col_def.data_type, &new_value) {
-                    (DataType::Int, Value::Int(_)) => {}
+                    (DataType::Int(_), Value::Int(_)) => {}
                     (DataType::Varchar(_), Value::String(_)) => {}
                     (_, Value::Null) if col_def.nullable => {}
                     _ => {
