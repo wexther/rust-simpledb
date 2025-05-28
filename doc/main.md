@@ -2,52 +2,40 @@
 
 ## 基本架构
 
-本数据库基本由三个层次组成，语法解析层（Parser），查询处理层(Query Procession)，存储引擎层（Storage Engine）。
+本数据库系统由三个主要层次组成：
 
-main函数的执行流程为，首先读取数据库文件，将文件内容保存在底层的数据结构中。之后循环获取要执行的语句，通过语法解析层生成ast树，将ast树传入查询处理层，查询处理层会具体执行该语句。
+1. **语法解析层**：使用 sqlparser crate 解析SQL语句生成AST
+2. **查询处理层**：负责生成查询计划并执行查询操作
+3. **存储引擎层**：负责数据的存储、检索和管理
+
+**执行流程**：main函数首先读取SQL文件，使用sqlparser解析SQL生成AST，然后查询处理器接收AST并生成查询计划，执行器执行查询计划并调用存储引擎API，最后返回查询结果。
 
 ## 详细架构
 
+```text
 src/
 ├── main.rs                        # 程序入口
 ├── error.rs                       # 统一错误处理
-├── parser/                        # 语法解析层
-│   ├── mod.rs
-│   ├── sql_parser.rs              # SQL解析
-│   └── ast.rs                     # 自定义AST结构（如需要）
+├── query.rs                       # 查询处理模块入口
+├── storage.rs                     # 存储引擎模块入口
 │
 ├── query/                         # 查询处理层
-│   ├── mod.rs
 │   ├── planner.rs                 # 查询计划生成
-│   ├── optimizer.rs               # 查询优化
-│   ├── executor/                  # 执行器
-│   │   ├── mod.rs
-│   │   ├── ddl_executor.rs        # DDL执行
-│   │   ├── dml_executor.rs        # DML执行
-│   │   └── query_executor.rs      # 查询执行
+│   ├── executor.rs                # 查询执行器
 │   └── result.rs                  # 查询结果处理
 │
 └── storage/                       # 存储引擎层
-    ├── mod.rs
-    ├── engine.rs                  # 存储引擎实现
-    ├── transaction.rs             # 事务管理
-    ├── table.rs                   # 表管理
-    ├── record.rs                  # 记录管理
-    ├── index.rs                   # 索引实现
     ├── catalog.rs                 # 元数据管理
-    └── io/                        # IO管理
-        ├── mod.rs
+    ├── database.rs                # 数据库对象管理
+    ├── record.rs                  # 记录管理
+    ├── table.rs                   # 表管理
+    ├── transaction.rs             # 事务管理
+    ├── io.rs                      # IO模块入口
+    └── io/                        # IO子模块
+        ├── buffer_manager.rs      # 缓冲区管理
+        ├── disk_manager.rs        # 磁盘管理
         ├── page.rs                # 页面管理
         └── persistence.rs         # 持久化实现
-
-## 层与层之间的交互模式
-
-``` text
-┌───────────┐        Parse SQL       ┌─────────────┐    Generate Query Plan    ┌──────────────┐
-│           │───────────────────────>│    Query    │──────────────────────────>│    Storage   │
-│  Parser   │     Return AST Tree    │  Processing │    Execute Storage Ops    │    Engine    │
-│           │<──────────────────────-│             │<─────────────────────────-│              │
-└───────────┘                        └─────────────┘      Return Results       └──────────────┘
 ```
 
 ## 基础功能

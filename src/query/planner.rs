@@ -18,9 +18,9 @@ pub enum QueryPlan {
         name: String,
     },
     Select {
-        table_name: String,            // 替换为单个表名
-        columns: Vec<String>,          // 保留列引用
-        conditions: Option<Condition>, // 保留条件
+        table_name: String,
+        columns: Vec<String>,
+        conditions: Option<Condition>,
     },
     Insert {
         table_name: String,
@@ -378,7 +378,7 @@ impl QueryPlanner {
                 ))),
             },
             Statement::Query(query) => self.parse_select(query),
-            Statement::Insert (insert) => self.parse_insert(insert),
+            Statement::Insert(insert) => self.parse_insert(insert),
             Statement::Update {
                 table,
                 assignments,
@@ -413,7 +413,7 @@ impl QueryPlanner {
                     conditions,
                 })
             }
-            Statement::Delete (delete) => {
+            Statement::Delete(delete) => {
                 if (delete.tables.len() != 1) {
                     return Err(DBError::Parse("仅支持单表删除".to_string()));
                 }
@@ -492,10 +492,7 @@ impl QueryPlanner {
         }
     }
 
-    fn parse_insert(
-        &self,
-        insert: &sqlparser::ast::Insert
-    ) -> Result<QueryPlan> {
+    fn parse_insert(&self, insert: &sqlparser::ast::Insert) -> Result<QueryPlan> {
         let table_name = insert.table.to_string();
         let column_names: Vec<String> = insert.columns.iter().map(|c| c.value.clone()).collect();
         todo!();

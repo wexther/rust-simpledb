@@ -28,6 +28,5 @@ impl<'a> QueryProcessor<'a> {
         let plan = self.planner.plan(&stmt)?;
 
         self.executor.execute(plan)
-        }
     }
-
+}

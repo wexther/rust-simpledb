@@ -142,11 +142,11 @@ impl<'a> Executor<'a> {
                 }
                 // new code end
                 Err(DBError::Schema("删除失败".to_string()))
-            },
+            }
             QueryPlan::Select { .. } => {
                 todo!();
-            },
-            _=>{
+            }
+            _ => {
                 todo!();
             }
         }
