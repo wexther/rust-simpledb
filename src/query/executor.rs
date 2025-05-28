@@ -4,27 +4,20 @@ use crate::query::result::{QueryResult, ResultSet};
 use crate::storage::StorageEngine;
 use crate::storage::table::Value;
 
-/// 执行器特性，定义共同的执行接口
-pub trait Executor {
-    fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult>;
-}
-
-/// DDL执行器(Data Definition Language)
-pub struct DDLExecutor<'a> {
+/// 统一SQL执行器，处理所有类型的SQL操作
+pub struct Executor<'a> {
     storage: &'a mut StorageEngine,
 }
 
-impl<'a> DDLExecutor<'a> {
+impl<'a> Executor<'a> {
     pub fn new(storage: &'a mut StorageEngine) -> Self {
         Self { storage }
     }
-}
 
-impl<'a> Executor for DDLExecutor<'a> {
-    fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
-        match plan {
+    pub fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
+        match &plan {
             QueryPlan::CreateTable { name, columns } => {
-                match self.storage.create_table(name.clone(), columns) {
+                match self.storage.create_table(name.clone(), columns.to_vec()) {
                     Ok(_) => Ok(QueryResult::Success),
                     Err(e) => Err(DBError::Schema(e.to_string())),
                 }
@@ -33,25 +26,6 @@ impl<'a> Executor for DDLExecutor<'a> {
                 Ok(_) => Ok(QueryResult::Success),
                 Err(e) => Err(DBError::Schema(e.to_string())),
             },
-            _ => Err(DBError::Schema("不支持的DDL操作".to_string())),
-        }
-    }
-}
-
-/// DML执行器(Data Manipulation Language)
-pub struct DMLExecutor<'a> {
-    storage: &'a mut StorageEngine,
-}
-
-impl<'a> DMLExecutor<'a> {
-    pub fn new(storage: &'a mut StorageEngine) -> Self {
-        Self { storage }
-    }
-}
-
-impl<'a> Executor for DMLExecutor<'a> {
-    fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
-        match plan {
             QueryPlan::Insert { table_name, values } => {
                 // 尝试获取当前数据库
                 if let Ok(current_database) = self.storage.current_database_mut() {
@@ -168,30 +142,13 @@ impl<'a> Executor for DMLExecutor<'a> {
                 }
                 // new code end
                 Err(DBError::Schema("删除失败".to_string()))
-            }
-            _ => Err(DBError::Schema("不支持的DML操作".to_string())),
-        }
-    }
-}
-
-/// 查询执行器
-pub struct QueryExecutor<'a> {
-    storage: &'a mut StorageEngine,
-}
-
-impl<'a> QueryExecutor<'a> {
-    pub fn new(storage: &'a mut StorageEngine) -> Self {
-        Self { storage }
-    }
-}
-
-impl<'a> Executor for QueryExecutor<'a> {
-    fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
-        match plan {
+            },
             QueryPlan::Select { .. } => {
                 todo!();
+            },
+            _=>{
+                todo!();
             }
-            _ => Err(DBError::Schema("不支持的查询操作".to_string())),
         }
     }
 }

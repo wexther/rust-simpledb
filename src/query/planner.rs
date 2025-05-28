@@ -1,7 +1,11 @@
 use crate::error::{DBError, Result};
 use crate::storage::record::Record;
-use crate::storage::table::{ColumnDef, Table, Value};
-use sqlparser::ast::{BinaryOperator, Expr, ObjectType, Statement, Value as SqlValue};
+use crate::storage::table::{ColumnDef, DataType, Table, Value};
+use sqlparser::ast::{
+    BinaryOperator, ColumnOption, DataType as SqlDataType, Expr, ObjectType, Query, Statement,
+    Value as SqlValue,
+};
+use sqlparser::ast::{SelectItem, SetExpr, TableFactor};
 use std::fmt;
 
 /// 表示查询计划的枚举
@@ -31,7 +35,7 @@ pub enum QueryPlan {
         table_name: String,
         conditions: Option<Condition>,
     },
-    // 数据库操作计划
+    // 以下是数据库管理操作
     CreateDatabase {
         name: String,
     },
@@ -334,31 +338,197 @@ impl QueryPlanner {
     /// 将AST转换为查询计划
     pub fn plan(&self, stmt: &Statement) -> Result<QueryPlan> {
         match stmt {
-            Statement::CreateTable(sqlparser::ast::CreateTable { name, columns, .. }) => {
+            Statement::CreateTable(create_table) => {
                 // 解析CREATE TABLE语句
-                let table_name = name.to_string();
-                let column_defs = self.parse_column_definitions(columns)?;
+                let table_name = create_table.name.to_string();
+                let column_defs = self.parse_column_definitions(&create_table.columns)?;
 
                 Ok(QueryPlan::CreateTable {
                     name: table_name,
                     columns: column_defs,
                 })
             }
-            Statement::Query(query) => {
-                todo!();
+            Statement::Drop {
+                object_type,
+                names,
+                if_exists,
+                ..
+            } => match object_type {
+                ObjectType::Table => {
+                    if let Some(name) = names.first() {
+                        Ok(QueryPlan::DropTable {
+                            name: name.to_string(),
+                        })
+                    } else {
+                        Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
+                    }
+                }
+                ObjectType::Schema => {
+                    if let Some(name) = names.first() {
+                        Ok(QueryPlan::DropDatabase {
+                            name: name.to_string(),
+                        })
+                    } else {
+                        Err(DBError::Parse("DROP DATABASE缺少数据库名".to_string()))
+                    }
+                }
+                _ => Err(DBError::Parse(format!(
+                    "不支持的DROP操作: {:?}",
+                    object_type
+                ))),
+            },
+            Statement::Query(query) => self.parse_select(query),
+            Statement::Insert (insert) => self.parse_insert(insert),
+            Statement::Update {
+                table,
+                assignments,
+                selection,
+                ..
+            } => {
+                let table_name = match table {
+                    sqlparser::ast::TableWithJoins { relation, .. } => match relation {
+                        TableFactor::Table { name, .. } => name.to_string(),
+                        _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
+                    },
+                };
+
+                // 解析SET子句
+                let mut set_pairs = Vec::new();
+                for assignment in assignments {
+                    let column_name = assignment.target.to_string();
+                    let value = self.parse_expr_to_value(&assignment.value)?;
+                    set_pairs.push((column_name, value));
+                }
+
+                // 解析WHERE子句
+                let conditions = if let Some(expr) = selection {
+                    Some(Condition::from_expr(expr)?)
+                } else {
+                    None
+                };
+
+                Ok(QueryPlan::Update {
+                    table_name,
+                    set_pairs,
+                    conditions,
+                })
             }
-            // 数据库操作解析
-            Statement::CreateSchema { schema_name, .. } => Ok(QueryPlan::CreateDatabase {
+            Statement::Delete (delete) => {
+                if (delete.tables.len() != 1) {
+                    return Err(DBError::Parse("仅支持单表删除".to_string()));
+                }
+                let table_name = delete.tables[0].to_string();
+                let selection = &delete.selection;
+
+                // 解析WHERE子句
+                let conditions = if let Some(expr) = selection {
+                    Some(Condition::from_expr(expr)?)
+                } else {
+                    None
+                };
+
+                Ok(QueryPlan::Delete {
+                    table_name,
+                    conditions,
+                })
+            }
+            // 处理数据库管理语句
+            Statement::CreateSchema {
+                schema_name,
+                if_not_exists,
+                ..
+            } => Ok(QueryPlan::CreateDatabase {
                 name: schema_name.to_string(),
             }),
-            Statement::Drop {
-                object_type, names, ..
-            } => {
-                todo!();
+            Statement::ShowTables { .. } => Ok(QueryPlan::ShowTables),
+            Statement::ShowDatabases { .. } => Ok(QueryPlan::ShowDatabases),
+            _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
+        }
+    }
+
+    fn parse_select(&self, query: &Query) -> Result<QueryPlan> {
+        if let SetExpr::Select(select) = &*query.body {
+            // 仅支持单表查询
+            if select.from.len() != 1 {
+                return Err(DBError::Parse("仅支持单表查询".to_string()));
             }
-            // USE 语句可能需要自定义解析，因为sqlparser可能不直接支持
-            // ...
-            _ => Err(DBError::Parse(format!("不支持的SQL语句: {:?}", stmt))),
+
+            let table = &select.from[0].relation;
+            let table_name = match table {
+                TableFactor::Table { name, .. } => name.to_string(),
+                _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
+            };
+
+            // 解析选择的列
+            let mut columns = Vec::new();
+            for item in &select.projection {
+                match item {
+                    SelectItem::UnnamedExpr(Expr::Identifier(ident)) => {
+                        columns.push(ident.value.clone());
+                    }
+                    SelectItem::Wildcard(_) => {
+                        // * 通配符，表示选择所有列
+                        columns = vec!["*".to_string()];
+                        break;
+                    }
+                    _ => return Err(DBError::Parse(format!("不支持的SELECT表达式: {:?}", item))),
+                }
+            }
+
+            // 解析WHERE条件
+            let conditions = if let Some(expr) = &select.selection {
+                Some(Condition::from_expr(expr)?)
+            } else {
+                None
+            };
+
+            Ok(QueryPlan::Select {
+                table_name,
+                columns,
+                conditions,
+            })
+        } else {
+            Err(DBError::Parse("仅支持基本SELECT查询".to_string()))
+        }
+    }
+
+    fn parse_insert(
+        &self,
+        insert: &sqlparser::ast::Insert
+    ) -> Result<QueryPlan> {
+        let table_name = insert.table.to_string();
+        let column_names: Vec<String> = insert.columns.iter().map(|c| c.value.clone()).collect();
+        todo!();
+    }
+
+    fn parse_expr_to_value(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Value(value) => match &value.value {
+                SqlValue::Number(n, _) => {
+                    if n.contains('.') {
+                        Ok(Value::Float(n.parse().map_err(|e| {
+                            DBError::Parse(format!("无法解析浮点数: {}", e))
+                        })?))
+                    } else {
+                        let parsed_int: i64 = n
+                            .parse()
+                            .map_err(|e| DBError::Parse(format!("无法解析整数: {}", e)))?;
+
+                        if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
+                            return Err(DBError::Parse("整数超出i32范围".to_string()));
+                        }
+
+                        Ok(Value::Int(parsed_int as i32))
+                    }
+                }
+                SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => {
+                    Ok(Value::String(s.clone()))
+                }
+                SqlValue::Boolean(b) => Ok(Value::Boolean(*b)),
+                SqlValue::Null => Ok(Value::Null),
+                _ => Err(DBError::Parse(format!("不支持的值类型: {:?}", value))),
+            },
+            _ => Err(DBError::Parse(format!("不支持的表达式: {:?}", expr))),
         }
     }
 
@@ -366,8 +536,6 @@ impl QueryPlanner {
         &self,
         cols: &[sqlparser::ast::ColumnDef],
     ) -> Result<Vec<ColumnDef>> {
-        // 解析列定义...
-        let _ = cols;
-        Ok(vec![])
+        todo!();
     }
 }
