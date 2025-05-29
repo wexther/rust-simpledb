@@ -336,7 +336,9 @@ impl QueryAnalyzer {
             let name = col.name.to_string();
 
             let data_type = match col.data_type {
-                ast::DataType::Int(size) |ast::DataType::Integer(size) => DataType::Int(size.unwrap_or(64)),
+                ast::DataType::Int(size) | ast::DataType::Integer(size) => {
+                    DataType::Int(size.unwrap_or(64))
+                }
                 ast::DataType::Varchar(lenth) => match lenth {
                     Some(ast::CharacterLength::IntegerLength { length, .. }) => {
                         DataType::Varchar(length)

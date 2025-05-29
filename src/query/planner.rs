@@ -71,10 +71,7 @@ impl QueryPlanner {
                     .analyze_column_definitions(&create_table.columns)?,
             }),
             ast::Statement::Drop {
-                object_type,
-                names,
-                if_exists,
-                ..
+                object_type, names, ..
             } => match object_type {
                 ast::ObjectType::Table => {
                     if let Some(name) = names.first() {
@@ -83,15 +80,6 @@ impl QueryPlanner {
                         })
                     } else {
                         Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
-                    }
-                }
-                ast::ObjectType::Schema => {
-                    if let Some(name) = names.first() {
-                        Ok(QueryPlan::DropDatabase {
-                            name: name.to_string(),
-                        })
-                    } else {
-                        Err(DBError::Parse("DROP DATABASE缺少数据库名".to_string()))
                     }
                 }
                 _ => Err(DBError::Parse(format!(
@@ -228,6 +216,21 @@ mod tests {
             assert!(matches!(columns[5].data_type, DataType::Int(_)));
         } else {
             panic!("预期生成CreateTable查询计划");
+        }
+    }
+
+    #[test]
+    fn test_drop_table_plan() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "DROP TABLE IF EXISTS users;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::DropTable { name } = plan {
+            assert_eq!(name, "users");
+        } else {
+            panic!("预期生成DropTable查询计划");
         }
     }
 }
