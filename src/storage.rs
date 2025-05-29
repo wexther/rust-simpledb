@@ -98,7 +98,8 @@ impl StorageEngine {
         Ok(())
     }
 
-    // 数据库管理方法
+    // 以下是数据库管理方法
+    /// 创建数据库
     pub fn create_database(&mut self, name: String) -> Result<()> {
         if self.databases.contains_key(&name) {
             return Err(DBError::Schema(format!("数据库 '{}' 已存在", name)));
@@ -117,7 +118,8 @@ impl StorageEngine {
 
         Ok(())
     }
-
+    
+    /// 删除数据库
     pub fn drop_database(&mut self, name: &str) -> Result<()> {
         if !self.databases.contains_key(name) {
             return Err(DBError::NotFound(format!("数据库 '{}' 不存在", name)));
@@ -133,6 +135,7 @@ impl StorageEngine {
         Ok(())
     }
 
+    /// 更改当前数据库为
     pub fn use_database(&mut self, name: &str) -> Result<()> {
         if !self.databases.contains_key(name) {
             return Err(DBError::NotFound(format!("数据库 '{}' 不存在", name)));
@@ -142,6 +145,7 @@ impl StorageEngine {
         Ok(())
     }
 
+    /// 是否包含某数据库
     pub fn has_database(&self, name: &str) -> bool {
         self.databases.contains_key(name)
     }
@@ -152,7 +156,7 @@ impl StorageEngine {
             .ok_or_else(|| DBError::NotFound(format!("数据库 '{}' 不存在", name)))
     }
 
-    // 获取当前数据库的方法
+    /// 获取当前数据库的方法
     pub fn current_database(&self) -> Result<&Database> {
         const DEFAULT_DB_NAME: &str = "default";
 
@@ -170,6 +174,7 @@ impl StorageEngine {
         }
     }
 
+    /// 获取当前可变数据库
     pub fn current_database_mut(&mut self) -> Result<&mut Database> {
         const DEFAULT_DB_NAME: &str = "default";
 
@@ -190,27 +195,32 @@ impl StorageEngine {
             .ok_or_else(|| DBError::NotFound(format!("当前数据库 '{}' 不存在", name)))
     }
 
-    // 代理方法 - 转发到当前数据库
+    // 以下是一些代理方法 - 转发到当前数据库
+    /// 创建表
     pub fn create_table(&mut self, name: String, columns: Vec<ColumnDef>) -> Result<()> {
         let database = self.current_database_mut()?;
         database.create_table(name, columns)
     }
 
+    /// 删除表
     pub fn drop_table(&mut self, name: &str) -> Result<()> {
         let database = self.current_database_mut()?;
         database.drop_table(name)
     }
 
+    /// 获取表
     pub fn get_table(&self, name: &str) -> Result<&Table> {
         let database = self.current_database()?;
         database.get_table(name)
     }
 
+    /// 获取可变表
     pub fn get_table_mut(&mut self, name: &str) -> Result<&mut Table> {
         let database = self.current_database_mut()?;
         database.get_table_mut(name)
     }
 
+    /// 获取表的列定义
     pub fn get_table_columns(&self, name: &str) -> Result<Vec<ColumnDef>> {
         let database = self.current_database()?;
         let table = database.get_table(name)?;
