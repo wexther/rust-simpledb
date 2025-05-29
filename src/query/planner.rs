@@ -47,6 +47,9 @@ pub enum QueryPlan {
     },
     ShowDatabases,
     ShowTables,
+    ExpressionSelect {
+        expressions: Vec<(String, Value)>,
+    },
 }
 
 /// 查询计划生成器 - 负责使用分析后的数据生成查询计划
@@ -138,14 +141,7 @@ impl QueryPlanner {
     }
 
     fn plan_query(&self, query: &Box<ast::Query>) -> Result<QueryPlan> {
-        println!("Planning query: {:#?}", query);
-        let (table_name, columns, conditions) = self.analyzer.analyze_select(query)?;
-
-        Ok(QueryPlan::Select {
-            table_name,
-            columns,
-            conditions,
-        })
+        self.analyzer.analyze_select(query)
     }
 
     fn plan_create_table(&self, create_table: &ast::CreateTable) -> Result<QueryPlan> {
@@ -298,26 +294,55 @@ mod tests {
     }
 
     #[test]
-    fn test_select_add_plan() {
+    fn test_select_expression_plan_1() {
         let dialect = sqlparser::dialect::GenericDialect {};
-        let sql = "SELECT 1 + 1;";
+        let sql = "SELECT 1 * 2;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
         let plan = planner.plan(&ast[0]).unwrap();
 
-        println!("AST: {:#?}", ast);
-
-        if let QueryPlan::Select {
-            table_name,
-            columns,
-            conditions,
-        } = plan
-        {
-            assert_eq!(table_name, "users");
-            assert_eq!(columns, vec!["id", "name"]);
-            assert!(conditions.is_some());
+        if let QueryPlan::ExpressionSelect { expressions } = plan {
+            assert_eq!(expressions.len(), 1);
+            println!("{:#?}", expressions[0]);
+            panic!();
         } else {
-            panic!("预期生成Select查询计划");
+            panic!("预期生成ExpressionSelect查询计划");
+        }
+    }
+
+    #[test]
+    fn test_select_expression_plan_2() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT 1300;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::ExpressionSelect { expressions } = plan {
+            assert_eq!(expressions.len(), 1);
+            println!("{:#?}", expressions[0]);
+            assert_eq!(expressions[0].1, crate::storage::table::Value::Int(1300));
+            assert_eq!(expressions[0].0, "1300");
+        } else {
+            panic!("预期生成ExpressionSelect查询计划");
+        }
+    }
+
+    #[test]
+    fn test_select_expression_plan_3() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT 13.12;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::ExpressionSelect { expressions } = plan {
+            assert_eq!(expressions.len(), 1);
+            println!("{:#?}", expressions[0]);
+            assert_eq!(expressions[0].1, crate::storage::table::Value::Float(13.12));
+            assert_eq!(expressions[0].0, "13.12");
+        } else {
+            panic!("预期生成ExpressionSelect查询计划");
         }
     }
 }

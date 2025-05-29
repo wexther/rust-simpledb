@@ -1,4 +1,5 @@
 use crate::error::{DBError, Result};
+use crate::query::planner::QueryPlan;
 use crate::storage::record::Record;
 use crate::storage::table::{ColumnDef, DataType, Table, Value};
 use sqlparser::ast;
@@ -238,7 +239,7 @@ impl QueryAnalyzer {
         }
     }
 
-    /// 计算表达式的值
+    /// 计算表达式的值，需要表信息
     pub fn evaluate_expr(
         expr: &ast::Expr,
         record: &Record,
@@ -326,6 +327,20 @@ impl QueryAnalyzer {
         }
     }
 
+    pub fn analyze_expr_to_string(&self, expr: &ast::Expr) -> Result<String> {
+        match expr {
+            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
+            ast::Expr::Value(value) => match &value.value {
+                ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
+                    Ok(s.clone())
+                }
+                ast::Value::Number(n, _) => Ok(n.clone()),
+                _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
+            },
+            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
+        }
+    }
+
     /// 解析列定义
     pub fn analyze_column_definitions(&self, cols: &[ast::ColumnDef]) -> Result<Vec<ColumnDef>> {
         let mut columns = Vec::with_capacity(cols.len());
@@ -360,7 +375,12 @@ impl QueryAnalyzer {
                         my_is_primaty = is_primary;
                         not_null = is_primary;
                     }
-                    _ => return Err(DBError::Planner(format!("不支持的列选项: {:?}", constraint))),
+                    _ => {
+                        return Err(DBError::Planner(format!(
+                            "不支持的列选项: {:?}",
+                            constraint
+                        )));
+                    }
                 }
             }
             columns.push(ColumnDef {
@@ -376,11 +396,37 @@ impl QueryAnalyzer {
     }
 
     /// 解析SELECT查询
-    pub fn analyze_select(
-        &self,
-        query: &ast::Query,
-    ) -> Result<(String, Vec<String>, Option<Condition>)> {
-        todo!();
+    pub fn analyze_select(&self, query: &ast::Query) -> Result<QueryPlan> {
+        println!("Analyzing query: \n{:#?}", query);
+        let body = match &*query.body {
+            ast::SetExpr::Select(select) => &**select,
+            _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
+        };
+
+        println!("Query body: \n{:#?}", body);
+
+        if body.from.is_empty() {
+            // 无表表达式查询，即计算表达式
+            let mut expressions = Vec::new();
+
+            for item in &body.projection {
+                match item {
+                    ast::SelectItem::UnnamedExpr(expr) => {
+                        expressions.push((
+                            self.analyze_expr_to_string(expr)?,
+                            self.analyze_expr_to_value(expr)?,
+                        ));
+                    }
+                    _ => return Err(DBError::Planner("不支持的SELECT项类型".to_string())),
+                }
+            }
+
+            return Ok(QueryPlan::ExpressionSelect { expressions });
+        } else {
+            return Err(DBError::Planner(
+                "仅支持无表表达式查询，暂不支持FROM子句".to_string(),
+            ));
+        }
     }
 
     /// 解析INSERT语句

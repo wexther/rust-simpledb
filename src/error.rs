@@ -1,6 +1,6 @@
-use std::{result, io};
-use thiserror::Error;
 use sqlparser::parser;
+use std::{io, result};
+use thiserror::Error;
 
 pub type Result<T> = result::Result<T, DBError>;
 
@@ -10,12 +10,10 @@ pub enum DBError {
     #[error("{0}")]
     IO(String),
     //IO(io::Error),
-
     /// 由 sqlparser 解析 SQL 语句时的报错
     #[error("{0}")]
     Parse(String),
     //Parse(sqlparser::parser::ParserError),
-
     #[error("{0}")]
     Planner(String),
 

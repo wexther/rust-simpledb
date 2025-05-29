@@ -118,7 +118,7 @@ impl StorageEngine {
 
         Ok(())
     }
-    
+
     /// 删除数据库
     pub fn drop_database(&mut self, name: &str) -> Result<()> {
         if !self.databases.contains_key(name) {

@@ -25,7 +25,7 @@ pub enum DataType {
 }
 
 /// 表示值的枚举
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Int(i32),
     Float(f64),
