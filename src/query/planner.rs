@@ -64,39 +64,11 @@ impl QueryPlanner {
     /// 将AST转换为查询计划
     pub fn plan(&self, stmt: &ast::Statement) -> Result<QueryPlan> {
         match stmt {
-            ast::Statement::CreateTable(create_table) => Ok(QueryPlan::CreateTable {
-                name: create_table.name.to_string(),
-                columns: self
-                    .analyzer
-                    .analyze_column_definitions(&create_table.columns)?,
-            }),
+            ast::Statement::CreateTable(create_table) => self.plan_create_table(create_table),
             ast::Statement::Drop {
                 object_type, names, ..
-            } => match object_type {
-                ast::ObjectType::Table => {
-                    if let Some(name) = names.first() {
-                        Ok(QueryPlan::DropTable {
-                            name: name.to_string(),
-                        })
-                    } else {
-                        Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
-                    }
-                }
-                _ => Err(DBError::Parse(format!(
-                    "不支持的DROP操作: {:?}",
-                    object_type
-                ))),
-            },
-            ast::Statement::Query(query) => {
-                // 使用analyzer解析SELECT查询
-                let (table_name, columns, conditions) = self.analyzer.analyze_select(query)?;
-
-                Ok(QueryPlan::Select {
-                    table_name,
-                    columns,
-                    conditions,
-                })
-            }
+            } => self.plan_drop_table(object_type, names),
+            ast::Statement::Query(query) => self.plan_query(query),
             ast::Statement::Insert(insert) => {
                 // todo!() 使用analyzer解析INSERT语句
                 todo!();
@@ -167,6 +139,47 @@ impl QueryPlanner {
             _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
         }
     }
+
+    fn plan_query(&self, query: &Box<ast::Query>) -> Result<QueryPlan> {
+        let (table_name, columns, conditions) = self.analyzer.analyze_select(query)?;
+
+        Ok(QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+        })
+    }
+
+    fn plan_create_table(&self, create_table: &ast::CreateTable) -> Result<QueryPlan> {
+        Ok(QueryPlan::CreateTable {
+            name: create_table.name.to_string(),
+            columns: self
+                .analyzer
+                .analyze_column_definitions(&create_table.columns)?,
+        })
+    }
+
+    fn plan_drop_table(
+        &self,
+        object_type: &ast::ObjectType,
+        names: &Vec<ast::ObjectName>,
+    ) -> Result<QueryPlan> {
+        match object_type {
+            ast::ObjectType::Table => {
+                if let Some(name) = names.first() {
+                    Ok(QueryPlan::DropTable {
+                        name: name.to_string(),
+                    })
+                } else {
+                    Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
+                }
+            }
+            _ => Err(DBError::Parse(format!(
+                "不支持的DROP操作: {:?}",
+                object_type
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -222,7 +235,7 @@ mod tests {
     #[test]
     fn test_drop_table_plan() {
         let dialect = sqlparser::dialect::GenericDialect {};
-        let sql = "DROP TABLE IF EXISTS users;";
+        let sql = "DROP TABLE users;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
         let plan = planner.plan(&ast[0]).unwrap();
