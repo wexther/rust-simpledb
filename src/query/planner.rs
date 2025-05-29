@@ -69,10 +69,7 @@ impl QueryPlanner {
                 object_type, names, ..
             } => self.plan_drop_table(object_type, names),
             ast::Statement::Query(query) => self.plan_query(query),
-            ast::Statement::Insert(insert) => {
-                // todo!() 使用analyzer解析INSERT语句
-                todo!();
-            }
+            ast::Statement::Insert(insert) => self.plan_insert(insert),
             ast::Statement::Update {
                 table,
                 assignments,
@@ -82,7 +79,7 @@ impl QueryPlanner {
                 let table_name = match table {
                     sqlparser::ast::TableWithJoins { relation, .. } => match relation {
                         ast::TableFactor::Table { name, .. } => name.to_string(),
-                        _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
+                        _ => return Err(DBError::Planner("仅支持简单表引用".to_string())),
                     },
                 };
 
@@ -141,6 +138,7 @@ impl QueryPlanner {
     }
 
     fn plan_query(&self, query: &Box<ast::Query>) -> Result<QueryPlan> {
+        println!("Planning query: {:#?}", query);
         let (table_name, columns, conditions) = self.analyzer.analyze_select(query)?;
 
         Ok(QueryPlan::Select {
@@ -179,6 +177,36 @@ impl QueryPlanner {
                 object_type
             ))),
         }
+    }
+
+    fn plan_insert(&self, insert: &ast::Insert) -> Result<QueryPlan> {
+        todo!();
+        // let table_name = match &insert.table {
+        //     ast::TableWithJoins { relation, .. } => match relation {
+        //         ast::TableFactor::Table { name, .. } => name.to_string(),
+        //         _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
+        //     },
+        // };
+
+        // let mut values = Vec::new();
+        // for row in &insert.rows {
+        //     let mut row_values = Vec::new();
+        //     for (i, value) in row.iter().enumerate() {
+        //         let column_name = if let Some(col) = &insert.columns.get(i) {
+        //             col.to_string()
+        //         } else {
+        //             return Err(DBError::Parse("插入值与列不匹配".to_string()));
+        //         };
+        //         let val = self.analyzer.analyze_expr_to_value(value)?;
+        //         row_values.push((column_name, val));
+        //     }
+        //     values.push(row_values);
+        // }
+
+        // Ok(QueryPlan::Insert {
+        //     table_name,
+        //     values,
+        // })
     }
 }
 
@@ -244,6 +272,52 @@ mod tests {
             assert_eq!(name, "users");
         } else {
             panic!("预期生成DropTable查询计划");
+        }
+    }
+
+    #[test]
+    fn test_select_plan() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE left_num > 10;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            assert!(conditions.is_some());
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+
+    #[test]
+    fn test_select_add_plan() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT 1 + 1;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        println!("AST: {:#?}", ast);
+
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            assert!(conditions.is_some());
+        } else {
+            panic!("预期生成Select查询计划");
         }
     }
 }
