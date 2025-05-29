@@ -8,9 +8,10 @@ pub mod transaction;
 use crate::error::{DBError, Result};
 use catalog::Catalog;
 use database::Database;
+use record::{Record, RecordId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use table::{ColumnDef, Table};
+use table::{ColumnDef, Table, Value};
 
 /// 存储引擎 - 负责数据存储和访问
 pub struct StorageEngine {
@@ -150,9 +151,17 @@ impl StorageEngine {
         self.databases.contains_key(name)
     }
 
+    /// 获取数据库
     pub fn get_database(&self, name: &str) -> Result<&Database> {
         self.databases
             .get(name)
+            .ok_or_else(|| DBError::NotFound(format!("数据库 '{}' 不存在", name)))
+    }
+
+    /// 获取可变数据库
+    pub fn get_database_mut(&mut self, name: &str) -> Result<&mut Database> {
+        self.databases
+            .get_mut(name)
             .ok_or_else(|| DBError::NotFound(format!("数据库 '{}' 不存在", name)))
     }
 
@@ -225,6 +234,36 @@ impl StorageEngine {
         let database = self.current_database()?;
         let table = database.get_table(name)?;
         Ok(table.columns().to_vec())
+    }
+
+    // 以下是一些对表记录的操作
+    /// 增加一行
+    pub fn insert_record(&mut self, table_name: &str, values: Vec<Value>) -> Result<RecordId> {
+        let database = self.current_database_mut()?;
+        database.insert_record(table_name, values)
+    }
+
+    /// 删除一行
+    pub fn delete_record(&mut self, table_name: &str, record_id: RecordId) -> Result<()> {
+        let database = self.current_database_mut()?;
+        database.delete_record(table_name, record_id)
+    }
+
+    /// 更新一行
+    pub fn update_record(
+        &mut self,
+        table_name: &str,
+        record_id: RecordId,
+        set_pairs: &Vec<(String, Value)>,
+    ) -> Result<()> {
+        let database = self.current_database_mut()?;
+        database.update_record(table_name, record_id, set_pairs)
+    }
+
+    /// 获取表中所有记录
+    pub fn get_all_records(&mut self, table_name: &str) -> Result<Vec<Record>> {
+        let mut database = self.current_database_mut()?;
+        database.get_all_records(table_name)
     }
 }
 

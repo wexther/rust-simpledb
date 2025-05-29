@@ -17,138 +17,115 @@ impl<'a> Executor<'a> {
     pub fn execute(&mut self, plan: QueryPlan) -> Result<QueryResult> {
         match &plan {
             QueryPlan::CreateTable { name, columns } => {
-                match self.storage.create_table(name.clone(), columns.to_vec()) {
+                        match self.storage.create_table(name.clone(), columns.to_vec()) {
+                            Ok(_) => Ok(QueryResult::Success),
+                            Err(e) => Err(DBError::Schema(e.to_string())),
+                        }
+                    }
+            QueryPlan::DropTable { name } => match self.storage.drop_table(&name) {
+                        Ok(_) => Ok(QueryResult::Success),
+                        Err(e) => Err(DBError::Schema(e.to_string())),
+                    },
+            QueryPlan::Insert { table_name, values } => {
+                        // 对于values中的每一个record
+                        for record in values {
+                            // 获取table的列定义
+                            let columnDefs = self.storage.get_table_columns(table_name)?;
+                            // 检查record的长度是否与列定义匹配
+                            if record.len() != columnDefs.len() {
+                                return Err(DBError::Schema(format!(
+                                    "插入记录的列数与表 '{}' 的列定义不匹配",
+                                    table_name
+                                )));
+                            }
+                            // 根据columnDefs中的名称，将record构造成合理的vec<Value>
+                            // 新建一个Vec<Value>来存储转换后的值
+                            let mut values: Vec<Value> = Vec::with_capacity(record.len());
+                            // 遍历columnDefs
+                            for (i, column_def) in columnDefs.iter().enumerate() {
+                                // 获取这个column_def的名称
+                                let column_name = &column_def.name;
+                                // 获取record中对应的值
+                                let value = record.get(i).ok_or_else(|| {
+                                    DBError::Schema(format!(
+                                        "记录中缺少列 '{}' 的值",
+                                        column_name
+                                    ))
+                                })?;
+                                let value_content = value.1.clone();
+                                // 将值转换为Value类型
+                                let new_value = match value_content {
+                                    Value::Int(v) => Value::Int(v),
+                                    Value::Float(v) => Value::Float(v),
+                                    Value::String(v) => Value::String(v.clone()),
+                                    Value::Boolean(v) => Value::Boolean(v),
+                                    _ => return Err(DBError::Schema("不支持的值类型".to_string())),
+                                };
+                                // 在values中插入这个value
+                                values.push(new_value);
+                            }
+                            // 插入到表中
+                            self.storage.insert_record(table_name, values)?;
+                        }
+                        Ok(QueryResult::Success)
+                    }
+            QueryPlan::Update {
+                        table_name,
+                        set_pairs,
+                        conditions,
+                    } => {
+                        todo!() // 更新操作的实现
+                    }
+            QueryPlan::Delete {
+                        table_name,
+                        conditions,
+                    } => {
+                        todo!() // 删除操作的实现
+                    }
+            QueryPlan::Select {
+                        table_name, 
+                        columns, 
+                        conditions
+                    } => {
+                        // 获取表的列定义
+                        let table_columns = self.storage.get_table_columns(table_name)?;
+                        // 获取所有记录
+                        let records = self.storage.get_all_records(table_name)?;
+
+                        // 新建结果集
+                        let mut result_set = ResultSet {
+                            columns: table_columns.iter().map(|c| c.name.clone()).collect(),
+                            rows: Vec::new(),
+                        };
+
+                        // 遍历所有记录
+                        for record in records {
+                            // 检查条件是否满足
+                            // todo
+                        }
+
+                        Ok(QueryResult::ResultSet(result_set))            
+                    }
+            QueryPlan::CreateDatabase { name } => {
+                match self.storage.create_database(name.clone()) {
                     Ok(_) => Ok(QueryResult::Success),
                     Err(e) => Err(DBError::Schema(e.to_string())),
                 }
             }
-            QueryPlan::DropTable { name } => match self.storage.drop_table(&name) {
-                Ok(_) => Ok(QueryResult::Success),
-                Err(e) => Err(DBError::Schema(e.to_string())),
-            },
-            QueryPlan::Insert { table_name, values } => {
-                // 尝试获取当前数据库
-                if let Ok(current_database) = self.storage.current_database_mut() {
-                    // 遍历要插入的每一行数据
-                    for record in values {
-                        // 使用database的代理方法插入记录，不需要直接处理buffer_manager
-                        todo!();
-                    }
-                    return Ok(QueryResult::Success);
+            QueryPlan::DropDatabase { name } => {
+                match self.storage.drop_database(name) {
+                    Ok(_) => Ok(QueryResult::Success),
+                    Err(e) => Err(DBError::Schema(e.to_string())),
                 }
-                return Err(DBError::Schema("当前没有选择数据库".to_string()));
             }
-            QueryPlan::Update {
-                table_name,
-                set_pairs,
-                conditions,
-            } => {
-                // 实现更新操作
-                // new code
-                // 尝试获取当前数据库
-                // 1. 首先获取表的列定义（不需要持有表的引用）
-                let table_columns = match self.storage.get_table_columns(&table_name) {
-                    Ok(cols) => cols,
-                    Err(e) => return Err(DBError::Schema(e.to_string())),
-                };
-                // 2. 然后获取当前数据库的可变引用
-                if let Ok(current_database) = self.storage.current_database_mut() {
-                    // 3. 获取所有记录
-                    let all_records = match current_database.get_all_records(&table_name) {
-                        Ok(records) => records,
-                        Err(e) => return Err(DBError::Schema(e.to_string())),
-                    };
-
-                    // 4. 根据条件筛选记录
-                    let mut matched_records = Vec::new();
-                    for record in all_records {
-                        if let Some(cond) = &conditions {
-                            // 使用修改后的 evaluate 方法，传递列定义而不是表
-                            match cond.evaluate(&record, &table_columns) {
-                                Ok(true) => matched_records.push(record),
-                                Ok(false) => {} // 不匹配，跳过
-                                Err(e) => {
-                                    return Err(DBError::Schema(format!("条件评估错误: {}", e)));
-                                }
-                            }
-                        } else {
-                            // 如果没有条件，所有记录都满足
-                            matched_records.push(record);
-                        }
-                    }
-
-                    // 5. 更新匹配的记录
-                    for record in matched_records {
-                        if let Err(e) = current_database.update_record(
-                            &table_name,
-                            record.id().unwrap(),
-                            &set_pairs,
-                        ) {
-                            return Err(DBError::Schema(format!("删除记录失败: {}", e)));
-                        }
-                    }
-                    return Ok(QueryResult::Success);
+            QueryPlan::UseDatabase { name } => {
+                match self.storage.use_database(name) {
+                    Ok(_) => Ok(QueryResult::Success),
+                    Err(e) => Err(DBError::Schema(e.to_string())),
                 }
-                // new code end
-                return Err(DBError::Schema("更新失败".to_string()));
             }
-            QueryPlan::Delete {
-                table_name,
-                conditions,
-            } => {
-                // 实现删除操作
-                // new code
-                // 尝试获取当前数据库
-                // 1. 首先获取表的列定义（不需要持有表的引用）
-                let table_columns = match self.storage.get_table_columns(&table_name) {
-                    Ok(cols) => cols,
-                    Err(e) => return Err(DBError::Schema(e.to_string())),
-                };
-                // 2. 然后获取当前数据库的可变引用
-                if let Ok(current_database) = self.storage.current_database_mut() {
-                    // 3. 获取所有记录
-                    let all_records = match current_database.get_all_records(&table_name) {
-                        Ok(records) => records,
-                        Err(e) => return Err(DBError::Schema(e.to_string())),
-                    };
-
-                    // 4. 根据条件筛选记录
-                    let mut matched_records = Vec::new();
-                    for record in all_records {
-                        if let Some(cond) = &conditions {
-                            // 使用修改后的 evaluate 方法，传递列定义而不是表
-                            match cond.evaluate(&record, &table_columns) {
-                                Ok(true) => matched_records.push(record),
-                                Ok(false) => {} // 不匹配，跳过
-                                Err(e) => {
-                                    return Err(DBError::Schema(format!("条件评估错误: {}", e)));
-                                }
-                            }
-                        } else {
-                            // 如果没有条件，所有记录都满足
-                            matched_records.push(record);
-                        }
-                    }
-
-                    // 5. 删除匹配的记录
-                    for record in matched_records {
-                        if let Err(e) =
-                            current_database.delete_record(&table_name, record.id().unwrap())
-                        {
-                            return Err(DBError::Schema(format!("删除记录失败: {}", e)));
-                        }
-                    }
-                    return Ok(QueryResult::Success);
-                }
-                // new code end
-                Err(DBError::Schema("删除失败".to_string()))
-            }
-            QueryPlan::Select { .. } => {
-                todo!();
-            }
-            _ => {
-                todo!();
-            }
+            QueryPlan::ShowDatabases => todo!(),
+            QueryPlan::ShowTables => todo!(),
         }
     }
 }

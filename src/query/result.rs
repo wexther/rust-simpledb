@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::storage::table::Value;
+
 /// 查询结果数据
 #[derive(Debug)]
 pub struct ResultSet {
