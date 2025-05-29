@@ -1,4 +1,5 @@
 use crate::error::{DBError, Result};
+use crate::query::planner::QueryPlan;
 use crate::storage::record::Record;
 use crate::storage::table::{ColumnDef, DataType, Table, Value};
 use sqlparser::ast;
@@ -80,7 +81,7 @@ impl Condition {
                     CompareOperator::LtEq => left_val.le(&right_val),
                     CompareOperator::Gt => left_val.gt(&right_val),
                     CompareOperator::GtEq => left_val.ge(&right_val),
-                    CompareOperator::In => Err(DBError::Parse("IN操作符暂不支持".to_string())),
+                    CompareOperator::In => Err(DBError::Planner("IN操作符暂不支持".to_string())),
                 }
             }
 
@@ -201,7 +202,7 @@ impl QueryAnalyzer {
                         right: Box::new(Self::analyze_condition(right)?),
                     }),
 
-                    _ => Err(DBError::Parse(format!("不支持的二元操作符: {:?}", op))),
+                    _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
                 }
             }
 
@@ -229,16 +230,16 @@ impl QueryAnalyzer {
                 if let ast::Value::Boolean(b) = &value.value {
                     Ok(Condition::Constant(*b))
                 } else {
-                    Err(DBError::Parse(format!("不支持的常量值: {:?}", value)))
+                    Err(DBError::Planner(format!("不支持的常量值: {:?}", value)))
                 }
             }
 
             // 其他情况，比如单个标识符，可能需要特殊处理
-            _ => Err(DBError::Parse(format!("不支持的条件表达式: {:?}", expr))),
+            _ => Err(DBError::Planner(format!("不支持的条件表达式: {:?}", expr))),
         }
     }
 
-    /// 计算表达式的值
+    /// 计算表达式的值，需要表信息
     pub fn evaluate_expr(
         expr: &ast::Expr,
         record: &Record,
@@ -251,7 +252,7 @@ impl QueryAnalyzer {
                 let column_idx = columns
                     .iter()
                     .position(|col| col.name == column_name)
-                    .ok_or_else(|| DBError::Schema(format!("列 '{}' 不存在", column_name)))?;
+                    .ok_or_else(|| DBError::Planner(format!("列 '{}' 不存在", column_name)))?;
 
                 Ok(record.values()[column_idx].clone())
             }
@@ -262,16 +263,16 @@ impl QueryAnalyzer {
                     ast::Value::Number(n, _) => {
                         if n.contains('.') {
                             Ok(Value::Float(n.parse().map_err(|e| {
-                                DBError::Parse(format!("无法解析浮点数: {}", e))
+                                DBError::Planner(format!("无法解析浮点数: {}", e))
                             })?))
                         } else {
                             let parsed_int: i64 = n
                                 .parse()
-                                .map_err(|e| DBError::Parse(format!("无法解析整数: {}", e)))?;
+                                .map_err(|e| DBError::Planner(format!("无法解析整数: {}", e)))?;
 
                             // 检查i32范围
                             if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
-                                return Err(DBError::Parse("整数超出i32范围".to_string()));
+                                return Err(DBError::Planner("整数超出i32范围".to_string()));
                             }
 
                             Ok(Value::Int(parsed_int as i32))
@@ -282,7 +283,7 @@ impl QueryAnalyzer {
                     }
                     ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
                     ast::Value::Null => Ok(Value::Null),
-                    _ => Err(DBError::Parse(format!(
+                    _ => Err(DBError::Planner(format!(
                         "不支持的常量值: {:?}",
                         value_with_span
                     ))),
@@ -290,7 +291,7 @@ impl QueryAnalyzer {
             }
 
             // 其他表达式类型...
-            _ => Err(DBError::Parse(format!("不支持的表达式: {:?}", expr))),
+            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
         }
     }
 
@@ -301,15 +302,15 @@ impl QueryAnalyzer {
                 ast::Value::Number(n, _) => {
                     if n.contains('.') {
                         Ok(Value::Float(n.parse().map_err(|e| {
-                            DBError::Parse(format!("无法解析浮点数: {}", e))
+                            DBError::Planner(format!("无法解析浮点数: {}", e))
                         })?))
                     } else {
                         let parsed_int: i64 = n
                             .parse()
-                            .map_err(|e| DBError::Parse(format!("无法解析整数: {}", e)))?;
+                            .map_err(|e| DBError::Planner(format!("无法解析整数: {}", e)))?;
 
                         if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
-                            return Err(DBError::Parse("整数超出i32范围".to_string()));
+                            return Err(DBError::Planner("整数超出i32范围".to_string()));
                         }
 
                         Ok(Value::Int(parsed_int as i32))
@@ -320,9 +321,23 @@ impl QueryAnalyzer {
                 }
                 ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
                 ast::Value::Null => Ok(Value::Null),
-                _ => Err(DBError::Parse(format!("不支持的值类型: {:?}", value))),
+                _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
             },
-            _ => Err(DBError::Parse(format!("不支持的表达式: {:?}", expr))),
+            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
+        }
+    }
+
+    pub fn analyze_expr_to_string(&self, expr: &ast::Expr) -> Result<String> {
+        match expr {
+            ast::Expr::Identifier(ident) => Ok(ident.value.clone()),
+            ast::Expr::Value(value) => match &value.value {
+                ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
+                    Ok(s.clone())
+                }
+                ast::Value::Number(n, _) => Ok(n.clone()),
+                _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
+            },
+            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
         }
     }
 
@@ -331,8 +346,6 @@ impl QueryAnalyzer {
         let mut columns = Vec::with_capacity(cols.len());
 
         for col in cols {
-            println!("解析列: {:#?}", col);
-
             let name = col.name.to_string();
 
             let data_type = match col.data_type {
@@ -345,7 +358,7 @@ impl QueryAnalyzer {
                     }
                     None | Some(ast::CharacterLength::Max) => DataType::Varchar(u64::MAX),
                 },
-                _ => return Err(DBError::Parse(format!("不支持的列类型: {:?}", col))),
+                _ => return Err(DBError::Planner(format!("不支持的列类型: {:?}", col))),
             };
 
             let mut not_null = false;
@@ -362,7 +375,12 @@ impl QueryAnalyzer {
                         my_is_primaty = is_primary;
                         not_null = is_primary;
                     }
-                    _ => return Err(DBError::Parse(format!("不支持的列选项: {:?}", constraint))),
+                    _ => {
+                        return Err(DBError::Planner(format!(
+                            "不支持的列选项: {:?}",
+                            constraint
+                        )));
+                    }
                 }
             }
             columns.push(ColumnDef {
@@ -378,11 +396,37 @@ impl QueryAnalyzer {
     }
 
     /// 解析SELECT查询
-    pub fn analyze_select(
-        &self,
-        query: &ast::Query,
-    ) -> Result<(String, Vec<String>, Option<Condition>)> {
-        todo!();
+    pub fn analyze_select(&self, query: &ast::Query) -> Result<QueryPlan> {
+        println!("Analyzing query: \n{:#?}", query);
+        let body = match &*query.body {
+            ast::SetExpr::Select(select) => &**select,
+            _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
+        };
+
+        println!("Query body: \n{:#?}", body);
+
+        if body.from.is_empty() {
+            // 无表表达式查询，即计算表达式
+            let mut expressions = Vec::new();
+
+            for item in &body.projection {
+                match item {
+                    ast::SelectItem::UnnamedExpr(expr) => {
+                        expressions.push((
+                            self.analyze_expr_to_string(expr)?,
+                            self.analyze_expr_to_value(expr)?,
+                        ));
+                    }
+                    _ => return Err(DBError::Planner("不支持的SELECT项类型".to_string())),
+                }
+            }
+
+            return Ok(QueryPlan::ExpressionSelect { expressions });
+        } else {
+            return Err(DBError::Planner(
+                "仅支持无表表达式查询，暂不支持FROM子句".to_string(),
+            ));
+        }
     }
 
     /// 解析INSERT语句
