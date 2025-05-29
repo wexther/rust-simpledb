@@ -64,18 +64,12 @@ impl QueryPlanner {
     /// 将AST转换为查询计划
     pub fn plan(&self, stmt: &ast::Statement) -> Result<QueryPlan> {
         match stmt {
-            ast::Statement::CreateTable(create_table) => {
-                // 解析CREATE TABLE语句
-                let table_name = create_table.name.to_string();
-                let column_defs = self
+            ast::Statement::CreateTable(create_table) => Ok(QueryPlan::CreateTable {
+                name: create_table.name.to_string(),
+                columns: self
                     .analyzer
-                    .analyze_column_definitions(&create_table.columns)?;
-
-                Ok(QueryPlan::CreateTable {
-                    name: table_name,
-                    columns: column_defs,
-                })
-            }
+                    .analyze_column_definitions(&create_table.columns)?,
+            }),
             ast::Statement::Drop {
                 object_type,
                 names,
@@ -154,7 +148,7 @@ impl QueryPlanner {
                 })
             }
             ast::Statement::Delete(delete) => {
-                if (delete.tables.len() != 1) {
+                if delete.tables.len() != 1 {
                     return Err(DBError::Parse("仅支持单表删除".to_string()));
                 }
                 let table_name = delete.tables[0].to_string();
@@ -187,24 +181,53 @@ impl QueryPlanner {
     }
 }
 
-#[test]
-fn test_create_table_plan() {
-    let dialect = sqlparser::dialect::GenericDialect {};
-    let sql = "CREATE TABLE users (id INT, name VARCHAR(100))";
-    let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+#[cfg(test)]
+mod tests {
+    use crate::storage::table::DataType;
 
-    // 验证查询计划是否正确
-    let planner = QueryPlanner::new();
-    let plan = planner.plan(&ast[0]).unwrap();
+    use super::{QueryPlan, QueryPlanner};
 
-    if let QueryPlan::CreateTable { name, columns } = plan {
-        assert_eq!(name, "users");
-        assert_eq!(columns.len(), 2);
-        assert_eq!(columns[0].name, "id");
-        assert_eq!(columns[0].data_type, DataType::Int(100));
-        assert_eq!(columns[1].name, "name");
-        assert!(matches!(columns[1].data_type, DataType::Varchar(100)));
-    } else {
-        panic!("预期生成CreateTable查询计划");
+    #[test]
+    fn test_create_table_plan() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "CREATE TABLE users (
+    id INT(32) PRIMARY KEY,
+    name VARCHAR(100),
+    left_num INT(32),
+    discription VARCHAR(150),
+    price INT NOT NULL NOT NULL,
+    time INTEGER
+);";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::CreateTable { name, columns } = plan {
+            assert_eq!(name, "users");
+            assert_eq!(columns.len(), 6);
+
+            assert_eq!(columns[0].name, "id");
+            assert_eq!(columns[0].data_type, DataType::Int(32));
+            assert!(columns[0].is_primary);
+            assert!(columns[0].not_null);
+            assert!(columns[0].unique);
+
+            assert_eq!(columns[1].name, "name");
+            assert_eq!(columns[1].data_type, DataType::Varchar(100));
+
+            assert_eq!(columns[2].name, "left_num");
+            assert_eq!(columns[2].data_type, DataType::Int(32));
+
+            assert_eq!(columns[3].name, "discription");
+            assert_eq!(columns[3].data_type, DataType::Varchar(150));
+
+            assert_eq!(columns[4].name, "price");
+            assert!(matches!(columns[4].data_type, DataType::Int(_)));
+
+            assert_eq!(columns[5].name, "time");
+            assert!(matches!(columns[5].data_type, DataType::Int(_)));
+        } else {
+            panic!("预期生成CreateTable查询计划");
+        }
     }
 }

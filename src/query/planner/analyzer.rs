@@ -1,7 +1,7 @@
 use crate::error::{DBError, Result};
 use crate::storage::record::Record;
 use crate::storage::table::{ColumnDef, DataType, Table, Value};
-use sqlparser::ast::{self, CharacterLength};
+use sqlparser::ast;
 use std::fmt;
 
 /// 表示查询条件的结构
@@ -331,22 +331,45 @@ impl QueryAnalyzer {
         let mut columns = Vec::with_capacity(cols.len());
 
         for col in cols {
-            // 获取列名
+            println!("解析列: {:#?}", col);
+
             let name = col.name.to_string();
-            // 获取列的数据类型
+
             let data_type = match col.data_type {
-                ast::DataType::Int(size) => DataType::Int(size.unwrap_or(32)),
-                ast::DataType::Varchar(_) => {
-                    todo!()
-                }
+                ast::DataType::Int(size) |ast::DataType::Integer(size) => DataType::Int(size.unwrap_or(64)),
+                ast::DataType::Varchar(lenth) => match lenth {
+                    Some(ast::CharacterLength::IntegerLength { length, .. }) => {
+                        DataType::Varchar(length)
+                    }
+                    None | Some(ast::CharacterLength::Max) => DataType::Varchar(u64::MAX),
+                },
                 _ => return Err(DBError::Parse(format!("不支持的列类型: {:?}", col))),
             };
-            let nullable = col.options.iter().any(|opt| {
-                matches!(opt.option, ast::ColumnOption::Null | ast::ColumnOption::NotNull)
+
+            let mut not_null = false;
+            let mut unique = false;
+            let mut my_is_primaty = false;
+
+            for constraint in &col.options {
+                match constraint.option {
+                    ast::ColumnOption::NotNull => {
+                        not_null = true;
+                    }
+                    ast::ColumnOption::Unique { is_primary, .. } => {
+                        unique = true;
+                        my_is_primaty = is_primary;
+                        not_null = is_primary;
+                    }
+                    _ => return Err(DBError::Parse(format!("不支持的列选项: {:?}", constraint))),
+                }
+            }
+            columns.push(ColumnDef {
+                name,
+                data_type,
+                not_null,
+                unique,
+                is_primary: my_is_primaty,
             });
-            let is_primary_key = true;
-            todo!();
-            columns.push(ColumnDef { name, data_type , nullable, is_primary_key});
         }
 
         Ok(columns)

@@ -10,16 +10,18 @@ use std::collections::HashMap;
 pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
-    pub nullable: bool,
-    pub is_primary_key: bool,
-    // pub is_unique: bool, // 待拓展功能unique，该列值互相不同，与主键不同，unique可以有空值但只能有一个
+
+    // 约束
+    pub not_null: bool,
+    pub unique: bool,
+    pub is_primary: bool, // is_primary => not_null && unique
 }
 
 /// 表示数据类型的枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DataType {
     Int(u64),
-    Varchar(usize),
+    Varchar(u64),
 }
 
 /// 表示值的枚举
@@ -203,7 +205,7 @@ pub struct Table {
 impl Table {
     pub fn new(name: String, columns: Vec<ColumnDef>) -> Self {
         // 找出主键列索引
-        let primary_key_index = columns.iter().position(|col| col.is_primary_key);
+        let primary_key_index = columns.iter().position(|col| col.is_primary);
 
         Self {
             name,
@@ -318,7 +320,7 @@ impl Table {
                 match (&col_def.data_type, &new_value) {
                     (DataType::Int(_), Value::Int(_)) => {}
                     (DataType::Varchar(_), Value::String(_)) => {}
-                    (_, Value::Null) if col_def.nullable => {}
+                    (_, Value::Null) if col_def.not_null => {}
                     _ => {
                         return Err(DBError::Schema(format!(
                             "列 '{}' 的数据类型与新值不匹配",
