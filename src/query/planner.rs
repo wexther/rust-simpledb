@@ -210,7 +210,7 @@ impl QueryPlanner {
 mod tests {
     use crate::storage::table::DataType;
 
-    use super::{QueryPlan, QueryPlanner};
+    use super::*;
 
     #[test]
     fn test_create_table_plan() {
@@ -299,12 +299,15 @@ mod tests {
         let sql = "SELECT 1 * 2;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
-        let plan = planner.plan(&ast[0]).unwrap();
+        let plan = planner.plan(&ast[0]).map_err(| e | {
+            DBError::Planner(format!("查询计划生成失败: {}", e));
+        }).unwrap();
+
 
         if let QueryPlan::ExpressionSelect { expressions } = plan {
             assert_eq!(expressions.len(), 1);
-            println!("{:#?}", expressions[0]);
-            panic!();
+            assert_eq!(expressions[0].0, "1 * 2");
+            assert_eq!(expressions[0].1, crate::storage::table::Value::Int(2));
         } else {
             panic!("预期生成ExpressionSelect查询计划");
         }

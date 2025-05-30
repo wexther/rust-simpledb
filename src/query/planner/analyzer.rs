@@ -266,16 +266,11 @@ impl QueryAnalyzer {
                                 DBError::Planner(format!("无法解析浮点数: {}", e))
                             })?))
                         } else {
-                            let parsed_int: i64 = n
+                            let parsed_int: i32 = n
                                 .parse()
                                 .map_err(|e| DBError::Planner(format!("无法解析整数: {}", e)))?;
 
-                            // 检查i32范围
-                            if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
-                                return Err(DBError::Planner("整数超出i32范围".to_string()));
-                            }
-
-                            Ok(Value::Int(parsed_int as i32))
+                            Ok(Value::Int(parsed_int))
                         }
                     }
                     ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
@@ -297,6 +292,7 @@ impl QueryAnalyzer {
 
     /// 将SQL表达式转换为值
     pub fn analyze_expr_to_value(&self, expr: &ast::Expr) -> Result<Value> {
+        println!("Analyzing expression: \n{:#?}", expr);
         match expr {
             ast::Expr::Value(value) => match &value.value {
                 ast::Value::Number(n, _) => {
@@ -323,6 +319,55 @@ impl QueryAnalyzer {
                 ast::Value::Null => Ok(Value::Null),
                 _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
             },
+            ast::Expr::BinaryOp { left, op, right } =>{
+                let left_value = self.analyze_expr_to_value(left)?;
+                let right_value = self.analyze_expr_to_value(right)?;
+
+                match op {
+                    ast::BinaryOperator::Plus => {
+                        if let (Value::Int(l), Value::Int(r)) = (left_value, right_value) {
+                            Ok(Value::Int(l + r))
+                        } else {
+                            Err(DBError::Planner("加法操作仅支持整数".to_string()))
+                        }
+                    }
+                    ast::BinaryOperator::Minus => {
+                        if let (Value::Int(l), Value::Int(r)) = (left_value, right_value) {
+                            Ok(Value::Int(l - r))
+                        } else {
+                            Err(DBError::Planner("减法操作仅支持整数".to_string()))
+                        }
+                    }
+                    ast::BinaryOperator::Multiply => {
+                        if let (Value::Int(l), Value::Int(r)) = (left_value, right_value) {
+                            Ok(Value::Int(l * r))
+                        } else {
+                            Err(DBError::Planner("乘法操作仅支持整数".to_string()))
+                        }
+                    }
+                    ast::BinaryOperator::Divide => {
+                        if let (Value::Int(l), Value::Int(r)) = (left_value, right_value) {
+                            if r == 0 {
+                                return Err(DBError::Planner("除数不能为零".to_string()));
+                            }
+                            Ok(Value::Int(l / r))
+                        } else {
+                            Err(DBError::Planner("除法操作仅支持整数".to_string()))
+                        }
+                    }
+                    ast::BinaryOperator::Modulo => {
+                        if let (Value::Int(l), Value::Int(r)) = (left_value, right_value) {
+                            if r == 0 {
+                                return Err(DBError::Planner("模数不能为零".to_string()));
+                            }
+                            Ok(Value::Int(l % r))
+                        } else {
+                            Err(DBError::Planner("模运算仅支持整数".to_string()))
+                        }
+                    }
+                    _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
+                }
+            }
             _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
         }
     }
@@ -337,6 +382,19 @@ impl QueryAnalyzer {
                 ast::Value::Number(n, _) => Ok(n.clone()),
                 _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
             },
+            ast::Expr::BinaryOp { left, op, right } => {
+                let left_str = self.analyze_expr_to_string(left)?;
+                let right_str = self.analyze_expr_to_string(right)?;
+                let op_str = match op {
+                    ast::BinaryOperator::Plus => "+",
+                    ast::BinaryOperator::Minus => "-",
+                    ast::BinaryOperator::Multiply => "*",
+                    ast::BinaryOperator::Divide => "/",
+                    ast::BinaryOperator::Modulo => "%",
+                    _ => return Err(DBError::Planner(format!("不支持的操作符: {:?}", op))),
+                };
+                Ok(format!("{} {} {}", left_str, op_str, right_str))
+            }
             _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
         }
     }
