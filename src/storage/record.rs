@@ -2,19 +2,10 @@ use super::io::page::{Page, PageId};
 use super::table::{ColumnDef, Value};
 use crate::error::{DBError, Result};
 use std::convert::TryFrom;
-
-/// 记录头部大小（字节）
-const RECORD_HEADER_SIZE: usize = 4;
-
-/// 记录状态
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum RecordStatus {
-    Valid = 0,
-    Deleted = 1,
-}
+use bincode::{Encode, Decode};
 
 /// 记录ID
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct RecordId {
     /// 页面ID
     pub page_id: PageId,
@@ -28,10 +19,16 @@ impl RecordId {
     }
 }
 
-/// 记录 - 表中的一行数据
+/// 存储用的记录结构（纯数据，用于序列化）
+#[derive(Debug, Clone, Encode, Decode)]
+struct StoredRecord {
+    data: Vec<Value>,
+}
+
+/// 运行时记录结构（包含ID等运行时信息）
 #[derive(Debug, Clone)]
 pub struct Record {
-    /// 记录ID
+    /// 运行时ID，不参与序列化
     id: Option<RecordId>,
     /// 记录数据
     data: Vec<Value>,
@@ -72,47 +69,25 @@ impl Record {
         self.data.get(index)
     }
 
-    /// 序列化记录
+    /// 序列化记录（只序列化数据部分）
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
-
-        // 写入记录数据数量
-        buffer.extend_from_slice(&(self.data.len() as u32).to_le_bytes());
-
-        // 写入每个值
-        for value in &self.data {
-            value.serialize(&mut buffer);
-        }
-
-        buffer
+        let stored = StoredRecord {
+            data: self.data.clone(),
+        };
+        bincode::encode_to_vec(&stored, bincode::config::standard()).unwrap_or_else(|e| {
+            panic!("序列化Record失败: {}", e);
+        })
     }
 
     /// 反序列化记录
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < 4 {
-            return Err(DBError::IO("记录数据不完整".to_string()));
+        match bincode::decode_from_slice::<StoredRecord, _>(buffer, bincode::config::standard()) {
+            Ok((stored, _)) => Ok(Self {
+                id: None, // ID 在反序列化时为空，需要后续设置
+                data: stored.data,
+            }),
+            Err(e) => Err(DBError::IO(format!("反序列化Record失败: {}", e))),
         }
-
-        let mut pos = 0;
-
-        // 读取记录数据数量
-        let mut size_bytes = [0u8; 4];
-        size_bytes.copy_from_slice(&buffer[pos..pos + 4]);
-        let size = u32::from_le_bytes(size_bytes) as usize;
-        pos += 4;
-
-        // 读取每个值
-        let mut values = Vec::with_capacity(size);
-        for _ in 0..size {
-            let (value, bytes_read) = Value::deserialize(&buffer[pos..])?;
-            values.push(value);
-            pos += bytes_read;
-        }
-
-        Ok(Self {
-            id: None,
-            data: values,
-        })
     }
 }
 

@@ -2,30 +2,10 @@ use super::io::buffer_manager::BufferManager;
 use super::io::page::{Page, PageId};
 use super::record::{Record, RecordId, RecordPageManager};
 use crate::error::{DBError, Result};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-/// 表示列定义的结构
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColumnDef {
-    pub name: String,
-    pub data_type: DataType,
-
-    // 约束
-    pub not_null: bool,
-    pub unique: bool,
-    pub is_primary: bool, // is_primary => not_null && unique
-}
-
-/// 表示数据类型的枚举
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum DataType {
-    Int(u64),
-    Varchar(u64),
-}
+use bincode::{Encode, Decode};
 
 /// 表示值的枚举
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum Value {
     Int(i32),
     Float(f64),
@@ -35,108 +15,82 @@ pub enum Value {
 }
 
 impl Value {
-    /// 序列化值到缓冲区
+    /// 使用 bincode 2.x 序列化到缓冲区
     pub fn serialize(&self, buffer: &mut Vec<u8>) {
-        match self {
-            Value::Int(n) => {
-                buffer.push(1); // 类型标记
-                buffer.extend_from_slice(&n.to_le_bytes());
-            }
-            Value::Float(f) => {
-                buffer.push(3); // 类型标记
-                buffer.extend_from_slice(&f.to_le_bytes());
-            }
-            Value::String(s) => {
-                buffer.push(2); // 类型标记
-                let bytes = s.as_bytes();
-                buffer.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-                buffer.extend_from_slice(bytes);
-            }
-            Value::Boolean(b) => {
-                buffer.push(4); // 类型标记
-                buffer.push(if *b { 1 } else { 0 });
-            }
-            Value::Null => {
-                buffer.push(0); // 类型标记
-            }
-        }
+        let serialized = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
+        buffer.extend_from_slice(&serialized);
     }
 
-    /// 从缓冲区反序列化值
+    /// 使用 bincode 2.x 从缓冲区反序列化
     pub fn deserialize(buffer: &[u8]) -> Result<(Self, usize)> {
-        if buffer.is_empty() {
-            return Err(DBError::IO("值数据不完整".to_string()));
-        }
-
-        let type_tag = buffer[0];
-        let mut pos = 1;
-
-        match type_tag {
-            0 => Ok((Value::Null, pos)),
-            1 => {
-                if buffer.len() < pos + 4 {
-                    return Err(DBError::IO("整数值数据不完整".to_string()));
-                }
-
-                let mut int_bytes = [0u8; 4];
-                int_bytes.copy_from_slice(&buffer[pos..pos + 4]);
-                let value = i32::from_le_bytes(int_bytes);
-                pos += 4;
-
-                Ok((Value::Int(value), pos))
-            }
-            2 => {
-                if buffer.len() < pos + 4 {
-                    return Err(DBError::IO("字符串值数据不完整".to_string()));
-                }
-
-                let mut len_bytes = [0u8; 4];
-                len_bytes.copy_from_slice(&buffer[pos..pos + 4]);
-                let str_len = u32::from_le_bytes(len_bytes) as usize;
-                pos += 4;
-
-                if buffer.len() < pos + str_len {
-                    return Err(DBError::IO("字符串值数据不完整".to_string()));
-                }
-
-                let string_data = &buffer[pos..pos + str_len];
-                let value = String::from_utf8(string_data.to_vec())
-                    .map_err(|_| DBError::IO("无效的UTF-8字符串".to_string()))?;
-                pos += str_len;
-
-                Ok((Value::String(value), pos))
-            }
-            3 => {
-                if buffer.len() < pos + 8 {
-                    return Err(DBError::IO("浮点数值数据不完整".to_string()));
-                }
-
-                let mut float_bytes = [0u8; 8];
-                float_bytes.copy_from_slice(&buffer[pos..pos + 8]);
-                let value = f64::from_le_bytes(float_bytes);
-                pos += 8;
-
-                Ok((Value::Float(value), pos))
-            }
-            4 => {
-                if buffer.len() < pos + 1 {
-                    return Err(DBError::IO("布尔值数据不完整".to_string()));
-                }
-
-                let value = buffer[pos] != 0;
-                pos += 1;
-
-                Ok((Value::Boolean(value), pos))
-            }
-            _ => Err(DBError::IO(format!("未知的值类型标记: {}", type_tag))),
+        match bincode::decode_from_slice(buffer, bincode::config::standard()) {
+            Ok((value, bytes_consumed)) => Ok((value, bytes_consumed)),
+            Err(e) => Err(DBError::IO(format!("反序列化Value失败: {}", e))),
         }
     }
 
-    // 添加比较方法
-    pub fn is_null(&self) -> bool {
-        matches!(self, Value::Null)
+    // 保留现有的数学运算方法...
+    pub fn add(&self, other: &Value) -> Result<Value> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a + *b as f64)),
+            _ => Err(DBError::Execution("类型不兼容，无法相加".to_string())),
+        }
     }
 
+    pub fn subtract(&self, other: &Value) -> Result<Value> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a - b)),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f64 - b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a - *b as f64)),
+            _ => Err(DBError::Execution("类型不兼容，无法相减".to_string())),
+        }
+    }
+
+    pub fn multiply(&self, other: &Value) -> Result<Value> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a * b)),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a * *b as f64)),
+            _ => Err(DBError::Execution("类型不兼容，无法相乘".to_string())),
+        }
+    }
+
+    pub fn divide(&self, other: &Value) -> Result<Value> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => {
+                if *b == 0 {
+                    return Err(DBError::Execution("除数不能为零".to_string()));
+                }
+                Ok(Value::Int(a / b))
+            }
+            (Value::Float(a), Value::Float(b)) => {
+                if *b == 0.0 {
+                    return Err(DBError::Execution("除数不能为零".to_string()));
+                }
+                Ok(Value::Float(a / b))
+            }
+            (Value::Int(a), Value::Float(b)) => {
+                if *b == 0.0 {
+                    return Err(DBError::Execution("除数不能为零".to_string()));
+                }
+                Ok(Value::Float(*a as f64 / b))
+            }
+            (Value::Float(a), Value::Int(b)) => {
+                if *b == 0 {
+                    return Err(DBError::Execution("除数不能为零".to_string()));
+                }
+                Ok(Value::Float(a / *b as f64))
+            }
+            _ => Err(DBError::Execution("类型不兼容，无法相除".to_string())),
+        }
+    }
+
+    // 保留现有的比较方法...
     pub fn eq(&self, other: &Self) -> Result<bool> {
         match (self, other) {
             (Value::Null, _) | (_, Value::Null) => Ok(false),
@@ -187,6 +141,29 @@ impl Value {
     pub fn ge(&self, other: &Self) -> Result<bool> {
         other.le(self)
     }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Null)
+    }
+}
+
+/// 表示列定义的结构
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct ColumnDef {
+    pub name: String,
+    pub data_type: DataType,
+
+    // 约束
+    pub not_null: bool,
+    pub unique: bool,
+    pub is_primary: bool, // is_primary => not_null && unique
+}
+
+/// 表示数据类型的枚举
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum DataType {
+    Int(u64),
+    Varchar(u64),
 }
 
 /// 表结构
