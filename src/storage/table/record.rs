@@ -1,5 +1,5 @@
-use super::io::page::{Page, PageId};
-use super::table::{ColumnDef, Value};
+use super::super::io::page::{Page, PageId};
+use super::super::table::{ColumnDef, Value};
 use crate::error::{DBError, Result};
 use std::convert::TryFrom;
 use bincode::{Encode, Decode};

@@ -3,8 +3,7 @@ use sqlparser::ast;
 mod analyzer;
 
 use crate::error::{DBError, Result};
-use crate::storage::record::Record;
-use crate::storage::table::{ColumnDef, DataType, Table, Value};
+use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
 use analyzer::{Condition, QueryAnalyzer};
 
 /// 表示查询计划的枚举
@@ -24,7 +23,8 @@ pub enum QueryPlan {
     },
     Insert {
         table_name: String,
-        values: Vec<Vec<(String, Value)>>,
+        columns: Vec<String>,
+        rows: Vec<Vec<Value>>,
     },
     Update {
         table_name: String,
@@ -176,33 +176,53 @@ impl QueryPlanner {
     }
 
     fn plan_insert(&self, insert: &ast::Insert) -> Result<QueryPlan> {
-        todo!();
-        // let table_name = match &insert.table {
-        //     ast::TableWithJoins { relation, .. } => match relation {
-        //         ast::TableFactor::Table { name, .. } => name.to_string(),
-        //         _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
-        //     },
-        // };
+        // 修改这里的模式匹配
+        let table_name = match &insert.table {
+            // 改为直接获取 ObjectName
+            ast::TableObject::TableName(name) => name.to_string(),
+            _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
+        };
 
-        // let mut values = Vec::new();
-        // for row in &insert.rows {
-        //     let mut row_values = Vec::new();
-        //     for (i, value) in row.iter().enumerate() {
-        //         let column_name = if let Some(col) = &insert.columns.get(i) {
-        //             col.to_string()
-        //         } else {
-        //             return Err(DBError::Parse("插入值与列不匹配".to_string()));
-        //         };
-        //         let val = self.analyzer.analyze_expr_to_value(value)?;
-        //         row_values.push((column_name, val));
-        //     }
-        //     values.push(row_values);
-        // }
+        // 获取列名（如果 SQL 中指定了列名）
+        let columns: Vec<String> = if insert.columns.is_empty() {
+            // 如果没有指定列名，需要从表结构中获取所有列名
+            // 这里可能需要访问 catalog 来获取表的列定义
+            return Err(DBError::Parse("暂不支持不指定列名的插入".to_string()));
+        } else {
+            insert.columns.iter().map(|col| col.to_string()).collect()
+        };
 
-        // Ok(QueryPlan::Insert {
-        //     table_name,
-        //     values,
-        // })
+        // 解析行数据
+        let mut rows = Vec::new();
+        if let Some(ast::SetExpr::Values(values_list)) = &insert.source.as_ref().map(|s| &*s.body) {
+            for row in &values_list.rows {
+                let mut row_values = Vec::new();
+                for expr in row {
+                    let value = self.analyzer.analyze_expr_to_value(expr)?;
+                    row_values.push(value);
+                }
+
+                // 验证值的数量与列数是否匹配
+                if row_values.len() != columns.len() {
+                    return Err(DBError::Parse(format!(
+                        "第 {} 行的值数量({})与列数({})不匹配",
+                        rows.len() + 1,
+                        row_values.len(),
+                        columns.len()
+                    )));
+                }
+
+                rows.push(row_values);
+            }
+        } else {
+            return Err(DBError::Parse("不支持的INSERT语法".to_string()));
+        }
+
+        Ok(QueryPlan::Insert {
+            table_name,
+            columns,
+            rows,
+        })
     }
 }
 
@@ -299,10 +319,12 @@ mod tests {
         let sql = "SELECT 1 * 2;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
-        let plan = planner.plan(&ast[0]).map_err(| e | {
-            DBError::Planner(format!("查询计划生成失败: {}", e));
-        }).unwrap();
-
+        let plan = planner
+            .plan(&ast[0])
+            .map_err(|e| {
+                DBError::Planner(format!("查询计划生成失败: {}", e));
+            })
+            .unwrap();
 
         if let QueryPlan::ExpressionSelect { expressions } = plan {
             assert_eq!(expressions.len(), 1);

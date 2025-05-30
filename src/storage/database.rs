@@ -1,6 +1,6 @@
 use super::catalog::Catalog;
 use super::io::persistence::PersistenceManager;
-use super::table::{ColumnDef, Table};
+use super::table::{ColumnDef, Table, RecordId, Record};
 use crate::error::{DBError, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -123,7 +123,7 @@ impl Database {
         &mut self,
         table_name: &str,
         values: Vec<super::table::Value>,
-    ) -> Result<super::record::RecordId> {
+    ) -> Result<RecordId> {
         // 使用if let避免同时拥有两个可变引用
         if let Some(table) = self.tables.get_mut(table_name) {
             // 现在只有一个对self的可变引用，可以安全地获取buffer_manager
@@ -139,7 +139,7 @@ impl Database {
     pub fn delete_record(
         &mut self,
         table_name: &str,
-        record_id: super::record::RecordId,
+        record_id: RecordId,
     ) -> Result<()> {
         // 检查表是否存在
         if let Some(table) = self.tables.get_mut(table_name) {
@@ -156,7 +156,7 @@ impl Database {
     pub fn update_record(
         &mut self,
         table_name: &str,
-        record_id: super::record::RecordId,
+        record_id: RecordId,
         set_pairs: &Vec<(String, super::table::Value)>,
     ) -> Result<()> {
         // 检查表是否存在
@@ -171,7 +171,7 @@ impl Database {
     }
 
     /// 获取表中全部记录的代理方法
-    pub fn get_all_records(&mut self, table_name: &str) -> Result<Vec<super::record::Record>> {
+    pub fn get_all_records(&mut self, table_name: &str) -> Result<Vec<Record>> {
         // 检查表是否存在
         let table = self
             .tables

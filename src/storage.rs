@@ -1,14 +1,15 @@
 pub mod catalog;
 mod database;
 mod io;
-pub mod record;
+
 pub mod table;
+// pub mod record;
 pub mod transaction;
 
 use crate::error::{DBError, Result};
 use catalog::Catalog;
 use database::Database;
-use record::{Record, RecordId};
+use table::{Record, RecordId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use table::{ColumnDef, Table, Value};

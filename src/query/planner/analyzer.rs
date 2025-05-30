@@ -1,7 +1,6 @@
 use crate::error::{DBError, Result};
 use crate::query::planner::QueryPlan;
-use crate::storage::record::Record;
-use crate::storage::table::{ColumnDef, DataType, Table, Value};
+use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
 use sqlparser::ast;
 use std::fmt;
 
@@ -319,7 +318,7 @@ impl QueryAnalyzer {
                 ast::Value::Null => Ok(Value::Null),
                 _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
             },
-            ast::Expr::BinaryOp { left, op, right } =>{
+            ast::Expr::BinaryOp { left, op, right } => {
                 let left_value = self.analyze_expr_to_value(left)?;
                 let right_value = self.analyze_expr_to_value(right)?;
 
