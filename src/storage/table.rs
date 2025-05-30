@@ -1,7 +1,7 @@
 use super::io::buffer_manager::BufferManager;
 use super::io::page::{Page, PageId};
 use crate::error::{DBError, Result};
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 pub mod record;
 pub mod value;

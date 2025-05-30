@@ -147,11 +147,11 @@ impl<'a> Executor<'a> {
                 column_def.name
             )));
         }
-        
+
         // 返回 NULL 值作为默认值
         Ok(Value::Null)
     }
-    
+
     /// 验证值类型是否与列定义匹配
     fn validate_value_type(&self, value: &Value, data_type: &DataType) -> Result<()> {
         match (value, data_type) {
@@ -160,7 +160,8 @@ impl<'a> Executor<'a> {
                 if s.len() > *max_len as usize {
                     Err(DBError::Schema(format!(
                         "字符串长度({})超过了VARCHAR({})的限制",
-                        s.len(), max_len
+                        s.len(),
+                        max_len
                     )))
                 } else {
                     Ok(())

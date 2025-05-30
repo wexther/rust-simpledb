@@ -1,6 +1,6 @@
 use super::catalog::Catalog;
 use super::io::persistence::PersistenceManager;
-use super::table::{ColumnDef, Table, RecordId, Record};
+use super::table::{ColumnDef, Record, RecordId, Table};
 use crate::error::{DBError, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -136,11 +136,7 @@ impl Database {
     }
 
     /// 删除表中记录的代理方法
-    pub fn delete_record(
-        &mut self,
-        table_name: &str,
-        record_id: RecordId,
-    ) -> Result<()> {
+    pub fn delete_record(&mut self, table_name: &str, record_id: RecordId) -> Result<()> {
         // 检查表是否存在
         if let Some(table) = self.tables.get_mut(table_name) {
             // 获取可变的缓冲区管理器

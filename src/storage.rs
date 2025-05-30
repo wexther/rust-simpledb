@@ -9,10 +9,9 @@ pub mod transaction;
 use crate::error::{DBError, Result};
 use catalog::Catalog;
 use database::Database;
-use table::{Record, RecordId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use table::{ColumnDef, Table, Value};
+use table::{ColumnDef, Record, RecordId, Table, Value};
 
 /// 存储引擎 - 负责数据存储和访问
 pub struct StorageEngine {

@@ -87,26 +87,25 @@ impl PersistenceManager {
     /// 删除数据库元数据文件
     pub fn delete_metadata(&self, database_name: &str) -> Result<()> {
         let metadata_file = self.db_dir.join(format!("{}.meta", database_name));
-        
+
         if metadata_file.exists() {
             fs::remove_file(metadata_file)
                 .map_err(|e| DBError::IO(format!("无法删除元数据文件: {}", e)))?;
         }
-        
+
         Ok(())
     }
 
     /// 列出所有数据库
     pub fn list_databases(&self) -> Result<Vec<String>> {
         let mut databases = Vec::new();
-        
+
         let entries = fs::read_dir(&self.db_dir)
             .map_err(|e| DBError::IO(format!("无法读取数据库目录: {}", e)))?;
 
         for entry in entries {
-            let entry = entry
-                .map_err(|e| DBError::IO(format!("无法读取目录项: {}", e)))?;
-            
+            let entry = entry.map_err(|e| DBError::IO(format!("无法读取目录项: {}", e)))?;
+
             let path = entry.path();
             if path.is_file() {
                 if let Some(extension) = path.extension() {
@@ -127,9 +126,12 @@ impl PersistenceManager {
     /// 备份数据库元数据
     pub fn backup_metadata(&self, database_name: &str, backup_path: &str) -> Result<()> {
         let metadata_file = self.db_dir.join(format!("{}.meta", database_name));
-        
+
         if !metadata_file.exists() {
-            return Err(DBError::NotFound(format!("数据库 '{}' 不存在", database_name)));
+            return Err(DBError::NotFound(format!(
+                "数据库 '{}' 不存在",
+                database_name
+            )));
         }
 
         // 读取原文件
@@ -148,8 +150,8 @@ impl PersistenceManager {
         let metadata_file = self.db_dir.join(format!("{}.meta", database_name));
 
         // 验证备份文件是否是有效的 Catalog
-        let backup_data = fs::read(backup_path)
-            .map_err(|e| DBError::IO(format!("无法读取备份文件: {}", e)))?;
+        let backup_data =
+            fs::read(backup_path).map_err(|e| DBError::IO(format!("无法读取备份文件: {}", e)))?;
 
         // 尝试反序列化以验证数据完整性
         let _: Catalog = bincode::decode_from_slice(&backup_data, bincode::config::standard())
@@ -191,7 +193,7 @@ impl PersistenceManager {
     /// 获取元数据文件大小
     pub fn get_metadata_size(&self, database_name: &str) -> Result<u64> {
         let metadata_file = self.get_metadata_path(database_name);
-        
+
         if !metadata_file.exists() {
             return Ok(0);
         }
@@ -216,16 +218,16 @@ mod tests {
 
         // 创建测试目录
         let mut catalog = Catalog::new();
-        let columns = vec![
-            ColumnDef {
-                name: "id".to_string(),
-                data_type: DataType::Int(4),
-                not_null: true,
-                unique: true,
-                is_primary: true,
-            },
-        ];
-        catalog.add_table_metadata("test_table".to_string(), columns).unwrap();
+        let columns = vec![ColumnDef {
+            name: "id".to_string(),
+            data_type: DataType::Int(4),
+            not_null: true,
+            unique: true,
+            is_primary: true,
+        }];
+        catalog
+            .add_table_metadata("test_table".to_string(), columns)
+            .unwrap();
 
         // 保存元数据
         persistence.save_metadata("test_db", &catalog).unwrap();
@@ -274,28 +276,34 @@ mod tests {
 
         // 创建测试数据
         let mut catalog = Catalog::new();
-        let columns = vec![
-            ColumnDef {
-                name: "test_col".to_string(),
-                data_type: DataType::Varchar(100),
-                not_null: false,
-                unique: false,
-                is_primary: false,
-            },
-        ];
-        catalog.add_table_metadata("backup_test".to_string(), columns).unwrap();
-        persistence.save_metadata("test_backup_db", &catalog).unwrap();
+        let columns = vec![ColumnDef {
+            name: "test_col".to_string(),
+            data_type: DataType::Varchar(100),
+            not_null: false,
+            unique: false,
+            is_primary: false,
+        }];
+        catalog
+            .add_table_metadata("backup_test".to_string(), columns)
+            .unwrap();
+        persistence
+            .save_metadata("test_backup_db", &catalog)
+            .unwrap();
 
         // 备份
         let backup_path = temp_dir.path().join("backup.meta");
-        persistence.backup_metadata("test_backup_db", backup_path.to_str().unwrap()).unwrap();
+        persistence
+            .backup_metadata("test_backup_db", backup_path.to_str().unwrap())
+            .unwrap();
 
         // 删除原数据
         persistence.delete_metadata("test_backup_db").unwrap();
         assert!(!persistence.database_exists("test_backup_db"));
 
         // 恢复
-        persistence.restore_metadata("test_backup_db", backup_path.to_str().unwrap()).unwrap();
+        persistence
+            .restore_metadata("test_backup_db", backup_path.to_str().unwrap())
+            .unwrap();
         assert!(persistence.database_exists("test_backup_db"));
 
         // 验证恢复的数据

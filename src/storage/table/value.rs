@@ -1,7 +1,7 @@
 use super::super::io::buffer_manager::BufferManager;
 use super::super::io::page::{Page, PageId};
 use crate::error::{DBError, Result};
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 /// 表示值的枚举
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]

@@ -1,8 +1,7 @@
 use super::super::io::page::{Page, PageId};
 use super::super::table::{ColumnDef, Value};
 use crate::error::{DBError, Result};
-use std::convert::TryFrom;
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 /// 记录ID
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
