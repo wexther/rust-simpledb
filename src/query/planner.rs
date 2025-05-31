@@ -6,6 +6,23 @@ use crate::error::{DBError, Result};
 use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
 use analyzer::{Condition, QueryAnalyzer};
 
+// 新增的排序相关结构
+/// 排序方向
+#[derive(Debug, Clone, PartialEq)]
+pub enum SortDirection {
+    Asc,  // 升序
+    Desc, // 降序
+}
+
+/// 排序项
+#[derive(Debug, Clone)]
+pub struct OrderByItem {
+    /// 排序的列名或表达式
+    pub column: String,
+    /// 排序方向
+    pub direction: SortDirection,
+}
+
 /// 表示查询计划的枚举
 #[derive(Debug)]
 pub enum QueryPlan {
@@ -20,6 +37,7 @@ pub enum QueryPlan {
         table_name: String,
         columns: Vec<String>,
         conditions: Option<Condition>,
+        order_by: Option<Vec<OrderByItem>>,
     },
     Insert {
         table_name: String,
@@ -303,6 +321,7 @@ mod tests {
             table_name,
             columns,
             conditions,
+            order_by: _,
         } = plan
         {
             assert_eq!(table_name, "users");
@@ -368,6 +387,36 @@ mod tests {
             assert_eq!(expressions[0].0, "13.12");
         } else {
             panic!("预期生成ExpressionSelect查询计划");
+        }
+    }
+    #[test]
+    fn test_select_with_order_by() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE age > 18 ORDER BY name ASC, id DESC;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            assert!(conditions.is_some());
+
+            // 测试 ORDER BY
+            let order_by = order_by.unwrap();
+            assert_eq!(order_by.len(), 2);
+            assert_eq!(order_by[0].column, "name");
+            assert_eq!(order_by[0].direction, SortDirection::Asc);
+            assert_eq!(order_by[1].column, "id");
+            assert_eq!(order_by[1].direction, SortDirection::Desc);
+        } else {
+            panic!("预期生成Select查询计划");
         }
     }
 }

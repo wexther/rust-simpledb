@@ -88,6 +88,25 @@ impl Value {
             _ => Err(DBError::Execution("类型不兼容，无法相除".to_string())),
         }
     }
+    pub fn modulo(&self, other: &Value) -> Result<Value> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => {
+                if *b == 0 {
+                    return Err(DBError::Execution("模数不能为零".to_string()));
+                }
+                Ok(Value::Int(a % b))
+            }
+            _ => Err(DBError::Execution("模运算仅支持整数".to_string())),
+        }
+    }
+
+    pub fn negate(&self) -> Result<Value> {
+        match self {
+            Value::Int(n) => Ok(Value::Int(-n)),
+            Value::Float(f) => Ok(Value::Float(-f)),
+            _ => Err(DBError::Execution("只能对数值进行取负操作".to_string())),
+        }
+    }
 
     // 保留现有的比较方法...
     pub fn eq(&self, other: &Self) -> Result<bool> {

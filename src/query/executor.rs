@@ -100,6 +100,7 @@ impl<'a> Executor<'a> {
                 table_name,
                 columns,
                 conditions,
+                order_by,
             } => {
                 // 获取表的列定义
                 let table_columns = self.storage.get_table_columns(table_name)?;

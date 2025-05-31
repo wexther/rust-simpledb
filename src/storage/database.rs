@@ -1,5 +1,5 @@
 use super::catalog::Catalog;
-use super::io::persistence::PersistenceManager;
+use super::io::PersistenceManager;
 use super::table::{ColumnDef, Record, RecordId, Table};
 use crate::error::{DBError, Result};
 use std::collections::HashMap;

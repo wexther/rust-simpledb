@@ -4,27 +4,72 @@ use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
 use sqlparser::ast;
 use std::fmt;
 
-/// 表示查询条件的结构
-#[derive(Clone, Debug)]
-pub enum Condition {
-    // 比较操作
-    Compare {
-        left: Box<ast::Expr>,
-        op: CompareOperator,
-        right: Box<ast::Expr>,
+use super::OrderByItem;
+
+/// 表示表达式的枚举
+#[derive(Clone, Debug, PartialEq)]
+pub enum Expression {
+    /// 列引用
+    Column(String),
+    /// 常量值
+    Value(Value),
+    /// 二元操作
+    Binary {
+        left: Box<Expression>,
+        operator: BinaryOperator,
+        right: Box<Expression>,
     },
-    // 逻辑操作
-    Logical {
-        left: Box<Condition>,
-        op: LogicalOperator,
-        right: Box<Condition>,
-    },
-    // 单操作数条件
+    /// 一元操作
     Unary {
-        op: UnaryOperator,
-        expr: Box<ast::Expr>,
+        operator: UnaryOperator,
+        operand: Box<Expression>,
     },
-    // 常量条件（true/false）
+}
+
+/// 二元操作符
+#[derive(Clone, Debug, PartialEq)]
+pub enum BinaryOperator {
+    // 算术操作符
+    Add,      // +
+    Subtract, // -
+    Multiply, // *
+    Divide,   // /
+    Modulo,   // %
+
+    // 比较操作符
+    Equal,              // =
+    NotEqual,           // <> or !=
+    LessThan,           // <
+    LessThanOrEqual,    // <=
+    GreaterThan,        // >
+    GreaterThanOrEqual, // >=
+
+    // 逻辑操作符
+    And, // AND
+    Or,  // OR
+}
+
+/// 一元操作符
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnaryOperator {
+    Not,   // NOT
+    Minus, // -
+    Plus,  // +
+}
+
+/// 表示查询条件的结构
+#[derive(Clone, Debug, PartialEq)]
+pub enum Condition {
+    /// 表达式条件（表达式的结果必须是布尔值）
+    Expression(Expression),
+
+    /// IS NULL 条件
+    IsNull(Expression),
+
+    /// IS NOT NULL 条件
+    IsNotNull(Expression),
+
+    /// 常量条件（true/false）
     Constant(bool),
 }
 
@@ -47,12 +92,76 @@ pub enum LogicalOperator {
     Or,
 }
 
-/// 单操作数操作符
-#[derive(Clone, Debug, PartialEq)]
-pub enum UnaryOperator {
-    Not,     // NOT
-    IsNull,  // IS NULL
-    NotNull, // IS NOT NULL
+impl Expression {
+    /// 评估表达式的值
+    pub fn evaluate(&self, record: &Record, columns: &[ColumnDef]) -> Result<Value> {
+        match self {
+            Expression::Column(column_name) => {
+                let column_idx = columns
+                    .iter()
+                    .position(|col| &col.name == column_name)
+                    .ok_or_else(|| DBError::Planner(format!("列 '{}' 不存在", column_name)))?;
+
+                Ok(record.values()[column_idx].clone())
+            }
+
+            Expression::Value(value) => Ok(value.clone()),
+
+            Expression::Binary {
+                left,
+                operator,
+                right,
+            } => {
+                let left_val = left.evaluate(record, columns)?;
+                let right_val = right.evaluate(record, columns)?;
+
+                match operator {
+                    // 算术操作
+                    BinaryOperator::Add => left_val.add(&right_val),
+                    BinaryOperator::Subtract => left_val.subtract(&right_val),
+                    BinaryOperator::Multiply => left_val.multiply(&right_val),
+                    BinaryOperator::Divide => left_val.divide(&right_val),
+                    BinaryOperator::Modulo => left_val.modulo(&right_val),
+
+                    // 比较操作（返回布尔值）
+                    BinaryOperator::Equal => Ok(Value::Boolean(left_val.eq(&right_val)?)),
+                    BinaryOperator::NotEqual => Ok(Value::Boolean(left_val.ne(&right_val)?)),
+                    BinaryOperator::LessThan => Ok(Value::Boolean(left_val.lt(&right_val)?)),
+                    BinaryOperator::LessThanOrEqual => Ok(Value::Boolean(left_val.le(&right_val)?)),
+                    BinaryOperator::GreaterThan => Ok(Value::Boolean(left_val.gt(&right_val)?)),
+                    BinaryOperator::GreaterThanOrEqual => {
+                        Ok(Value::Boolean(left_val.ge(&right_val)?))
+                    }
+
+                    // 逻辑操作
+                    BinaryOperator::And => match (left_val, right_val) {
+                        (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l && r)),
+                        _ => Err(DBError::Execution("AND 操作需要布尔值".to_string())),
+                    },
+                    BinaryOperator::Or => match (left_val, right_val) {
+                        (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l || r)),
+                        _ => Err(DBError::Execution("OR 操作需要布尔值".to_string())),
+                    },
+                }
+            }
+
+            Expression::Unary { operator, operand } => {
+                let val = operand.evaluate(record, columns)?;
+
+                match operator {
+                    UnaryOperator::Not => {
+                        if let Value::Boolean(b) = val {
+                            Ok(Value::Boolean(!b))
+                        } else {
+                            Err(DBError::Execution("NOT 操作需要布尔值".to_string()))
+                        }
+                    }
+                    UnaryOperator::Minus => val.negate(),
+                    UnaryOperator::Plus => Ok(val), // 正号不改变值
+                }
+            }
+        }
+    }
 }
 
 impl Condition {
@@ -69,77 +178,25 @@ impl Condition {
     /// 评估条件是否满足
     pub fn evaluate(&self, record: &Record, columns: &[ColumnDef]) -> Result<bool> {
         match self {
-            Condition::Compare { left, op, right } => {
-                let left_val = QueryAnalyzer::evaluate_expr(left, record, columns)?;
-                let right_val = QueryAnalyzer::evaluate_expr(right, record, columns)?;
-
-                match op {
-                    CompareOperator::Eq => left_val.eq(&right_val),
-                    CompareOperator::NotEq => left_val.ne(&right_val),
-                    CompareOperator::Lt => left_val.lt(&right_val),
-                    CompareOperator::LtEq => left_val.le(&right_val),
-                    CompareOperator::Gt => left_val.gt(&right_val),
-                    CompareOperator::GtEq => left_val.ge(&right_val),
-                    CompareOperator::In => Err(DBError::Planner("IN操作符暂不支持".to_string())),
+            Condition::Expression(expr) => {
+                let result = expr.evaluate(record, columns)?;
+                match result {
+                    Value::Boolean(b) => Ok(b),
+                    _ => Err(DBError::Execution("条件表达式必须返回布尔值".to_string())),
                 }
             }
 
-            Condition::Logical { left, op, right } => {
-                match op {
-                    LogicalOperator::And => {
-                        let left_res = left.evaluate(record, columns)?;
-                        if !left_res {
-                            return Ok(false); // 短路计算
-                        }
-                        right.evaluate(record, columns)
-                    }
-                    LogicalOperator::Or => {
-                        let left_res = left.evaluate(record, columns)?;
-                        if left_res {
-                            return Ok(true); // 短路计算
-                        }
-                        right.evaluate(record, columns)
-                    }
-                }
+            Condition::IsNull(expr) => {
+                let val = expr.evaluate(record, columns)?;
+                Ok(val.is_null())
             }
 
-            Condition::Unary { op, expr } => match op {
-                UnaryOperator::IsNull => {
-                    let val = QueryAnalyzer::evaluate_expr(expr, record, columns)?;
-                    Ok(val.is_null())
-                }
-                UnaryOperator::NotNull => {
-                    let val = QueryAnalyzer::evaluate_expr(expr, record, columns)?;
-                    Ok(!val.is_null())
-                }
-                UnaryOperator::Not => {
-                    let sub_cond = QueryAnalyzer::analyze_condition(expr)?;
-                    let res = sub_cond.evaluate(record, columns)?;
-                    Ok(!res)
-                }
-            },
+            Condition::IsNotNull(expr) => {
+                let val = expr.evaluate(record, columns)?;
+                Ok(!val.is_null())
+            }
 
             Condition::Constant(val) => Ok(*val),
-        }
-    }
-}
-
-// 为Condition实现Display特性，方便调试
-impl fmt::Display for Condition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Condition::Compare { left, op, right } => {
-                write!(f, "{:?} {:?} {:?}", left, op, right)
-            }
-            Condition::Logical { left, op, right } => {
-                write!(f, "({}) {:?} ({})", left, op, right)
-            }
-            Condition::Unary { op, expr } => {
-                write!(f, "{:?} {:?}", op, expr)
-            }
-            Condition::Constant(val) => {
-                write!(f, "{}", val)
-            }
         }
     }
 }
@@ -148,94 +205,139 @@ impl fmt::Display for Condition {
 pub struct QueryAnalyzer;
 
 impl QueryAnalyzer {
-    pub fn new() -> Self {
-        Self
-    }
-
-    /// 从SQL AST表达式转换为条件
-    pub fn analyze_condition(expr: &ast::Expr) -> Result<Condition> {
+    /// 从SQL AST表达式转换为内部表达式
+    pub fn convert_expr(&self, expr: &ast::Expr) -> Result<Expression> {
         match expr {
-            ast::Expr::BinaryOp { left, op, right } => {
-                match op {
-                    // 比较操作符
-                    ast::BinaryOperator::Eq => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::Eq,
-                        right: Box::new(*right.clone()),
-                    }),
-                    ast::BinaryOperator::NotEq => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::NotEq,
-                        right: Box::new(*right.clone()),
-                    }),
-                    ast::BinaryOperator::Lt => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::Lt,
-                        right: Box::new(*right.clone()),
-                    }),
-                    ast::BinaryOperator::LtEq => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::LtEq,
-                        right: Box::new(*right.clone()),
-                    }),
-                    ast::BinaryOperator::Gt => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::Gt,
-                        right: Box::new(*right.clone()),
-                    }),
-                    ast::BinaryOperator::GtEq => Ok(Condition::Compare {
-                        left: Box::new(*left.clone()),
-                        op: CompareOperator::GtEq,
-                        right: Box::new(*right.clone()),
-                    }),
+            ast::Expr::Identifier(ident) => Ok(Expression::Column(ident.value.clone())),
 
-                    // 逻辑操作符
-                    ast::BinaryOperator::And => Ok(Condition::Logical {
-                        left: Box::new(Self::analyze_condition(left)?),
-                        op: LogicalOperator::And,
-                        right: Box::new(Self::analyze_condition(right)?),
-                    }),
-                    ast::BinaryOperator::Or => Ok(Condition::Logical {
-                        left: Box::new(Self::analyze_condition(left)?),
-                        op: LogicalOperator::Or,
-                        right: Box::new(Self::analyze_condition(right)?),
-                    }),
-
-                    _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
-                }
+            ast::Expr::Value(value_with_span) => {
+                let value = self.convert_ast_value(&value_with_span.value)?;
+                Ok(Expression::Value(value))
             }
 
-            // 处理IS NULL和IS NOT NULL
-            ast::Expr::IsNull(expr) => Ok(Condition::Unary {
-                op: UnaryOperator::IsNull,
-                expr: Box::new(*expr.clone()),
-            }),
-            ast::Expr::IsNotNull(expr) => Ok(Condition::Unary {
-                op: UnaryOperator::NotNull,
-                expr: Box::new(*expr.clone()),
-            }),
+            ast::Expr::BinaryOp { left, op, right } => {
+                let left_expr = Box::new(self.convert_expr(left)?);
+                let right_expr = Box::new(self.convert_expr(right)?);
+                let operator = self.convert_binary_operator(op)?;
 
-            // 处理NOT条件
-            ast::Expr::UnaryOp {
-                op: ast::UnaryOperator::Not,
-                expr,
-            } => Ok(Condition::Unary {
-                op: UnaryOperator::Not,
-                expr: Box::new(*expr.clone()),
-            }),
+                Ok(Expression::Binary {
+                    left: left_expr,
+                    operator,
+                    right: right_expr,
+                })
+            }
 
-            // 常量boolean条件
+            ast::Expr::UnaryOp { op, expr } => {
+                let operand = Box::new(self.convert_expr(expr)?);
+                let operator = self.convert_unary_operator(op)?;
+
+                Ok(Expression::Unary { operator, operand })
+            }
+
+            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
+        }
+    }
+
+    /// 从SQL AST条件转换为内部条件
+    pub fn analyze_condition(expr: &ast::Expr) -> Result<Condition> {
+        let analyzer = QueryAnalyzer::new();
+
+        match expr {
+            // IS NULL
+            ast::Expr::IsNull(inner_expr) => {
+                let expr = analyzer.convert_expr(inner_expr)?;
+                Ok(Condition::IsNull(expr))
+            }
+
+            // IS NOT NULL
+            ast::Expr::IsNotNull(inner_expr) => {
+                let expr = analyzer.convert_expr(inner_expr)?;
+                Ok(Condition::IsNotNull(expr))
+            }
+
+            // 布尔常量
             ast::Expr::Value(value) => {
                 if let ast::Value::Boolean(b) = &value.value {
                     Ok(Condition::Constant(*b))
                 } else {
-                    Err(DBError::Planner(format!("不支持的常量值: {:?}", value)))
+                    // 其他值转换为表达式
+                    let expr = analyzer.convert_expr(expr)?;
+                    Ok(Condition::Expression(expr))
                 }
             }
 
-            // 其他情况，比如单个标识符，可能需要特殊处理
-            _ => Err(DBError::Planner(format!("不支持的条件表达式: {:?}", expr))),
+            // 其他表达式（包括比较和逻辑操作）
+            _ => {
+                let expr = analyzer.convert_expr(expr)?;
+                Ok(Condition::Expression(expr))
+            }
         }
+    }
+
+    /// 转换二元操作符
+    fn convert_binary_operator(&self, op: &ast::BinaryOperator) -> Result<BinaryOperator> {
+        match op {
+            ast::BinaryOperator::Plus => Ok(BinaryOperator::Add),
+            ast::BinaryOperator::Minus => Ok(BinaryOperator::Subtract),
+            ast::BinaryOperator::Multiply => Ok(BinaryOperator::Multiply),
+            ast::BinaryOperator::Divide => Ok(BinaryOperator::Divide),
+            ast::BinaryOperator::Modulo => Ok(BinaryOperator::Modulo),
+
+            ast::BinaryOperator::Eq => Ok(BinaryOperator::Equal),
+            ast::BinaryOperator::NotEq => Ok(BinaryOperator::NotEqual),
+            ast::BinaryOperator::Lt => Ok(BinaryOperator::LessThan),
+            ast::BinaryOperator::LtEq => Ok(BinaryOperator::LessThanOrEqual),
+            ast::BinaryOperator::Gt => Ok(BinaryOperator::GreaterThan),
+            ast::BinaryOperator::GtEq => Ok(BinaryOperator::GreaterThanOrEqual),
+
+            ast::BinaryOperator::And => Ok(BinaryOperator::And),
+            ast::BinaryOperator::Or => Ok(BinaryOperator::Or),
+
+            _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
+        }
+    }
+
+    /// 转换一元操作符
+    fn convert_unary_operator(&self, op: &ast::UnaryOperator) -> Result<UnaryOperator> {
+        match op {
+            ast::UnaryOperator::Not => Ok(UnaryOperator::Not),
+            ast::UnaryOperator::Minus => Ok(UnaryOperator::Minus),
+            ast::UnaryOperator::Plus => Ok(UnaryOperator::Plus),
+            _ => Err(DBError::Planner(format!("不支持的一元操作符: {:?}", op))),
+        }
+    }
+
+    /// 转换 AST 值到内部值
+    fn convert_ast_value(&self, value: &ast::Value) -> Result<Value> {
+        match value {
+            ast::Value::Number(n, _) => {
+                if n.contains('.') {
+                    Ok(Value::Float(n.parse().map_err(|e| {
+                        DBError::Planner(format!("无法解析浮点数: {}", e))
+                    })?))
+                } else {
+                    let parsed_int: i64 = n
+                        .parse()
+                        .map_err(|e| DBError::Planner(format!("无法解析整数: {}", e)))?;
+
+                    if parsed_int > i32::MAX as i64 || parsed_int < i32::MIN as i64 {
+                        return Err(DBError::Planner("整数超出i32范围".to_string()));
+                    }
+
+                    Ok(Value::Int(parsed_int as i32))
+                }
+            }
+            ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) => {
+                Ok(Value::String(s.clone()))
+            }
+            ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
+            ast::Value::Null => Ok(Value::Null),
+            _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
+        }
+    }
+
+    pub fn new() -> Self {
+        Self
     }
 
     /// 计算表达式的值，需要表信息
@@ -452,40 +554,6 @@ impl QueryAnalyzer {
         Ok(columns)
     }
 
-    /// 解析SELECT查询
-    pub fn analyze_select(&self, query: &ast::Query) -> Result<QueryPlan> {
-        println!("Analyzing query: \n{:#?}", query);
-        let body = match &*query.body {
-            ast::SetExpr::Select(select) => &**select,
-            _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
-        };
-
-        println!("Query body: \n{:#?}", body);
-
-        if body.from.is_empty() {
-            // 无表表达式查询，即计算表达式
-            let mut expressions = Vec::new();
-
-            for item in &body.projection {
-                match item {
-                    ast::SelectItem::UnnamedExpr(expr) => {
-                        expressions.push((
-                            self.analyze_expr_to_string(expr)?,
-                            self.analyze_expr_to_value(expr)?,
-                        ));
-                    }
-                    _ => return Err(DBError::Planner("不支持的SELECT项类型".to_string())),
-                }
-            }
-
-            return Ok(QueryPlan::ExpressionSelect { expressions });
-        } else {
-            return Err(DBError::Planner(
-                "仅支持无表表达式查询，暂不支持FROM子句".to_string(),
-            ));
-        }
-    }
-
     /// 解析INSERT语句
     pub fn analyze_insert(
         &self,
@@ -493,5 +561,145 @@ impl QueryAnalyzer {
     ) -> Result<(String, Vec<String>, Vec<Vec<(String, Value)>>)> {
         // todo!() 实现保持不变
         todo!();
+    }
+
+    pub fn analyze_select(&self, query: &ast::Query) -> Result<QueryPlan> {
+        let body = match &*query.body {
+            ast::SetExpr::Select(select) => &**select,
+            _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
+        };
+
+        if body.from.is_empty() {
+            // 无表表达式查询处理（保持不变）
+            let mut expressions = Vec::new();
+            for item in &body.projection {
+                match item {
+                    ast::SelectItem::UnnamedExpr(expr) => {
+                        let name = format!("{}", expr);
+                        let value = self.analyze_expr_to_value(expr)?;
+                        expressions.push((name, value));
+                    }
+                    ast::SelectItem::ExprWithAlias { expr, alias } => {
+                        let name = alias.to_string();
+                        let value = self.analyze_expr_to_value(expr)?;
+                        expressions.push((name, value));
+                    }
+                    _ => return Err(DBError::Planner("不支持的SELECT项类型".to_string())),
+                }
+            }
+            return Ok(QueryPlan::ExpressionSelect { expressions });
+        } else {
+            // 有表的查询
+            let table_name = self.extract_table_name(&body.from)?;
+
+            // 解析选择列
+            let columns = self.analyze_select_columns(&body.projection)?;
+
+            // 解析WHERE条件
+            let conditions = if let Some(selection) = &body.selection {
+                Some(Self::analyze_condition(selection)?)
+            } else {
+                None
+            };
+
+            // 解析ORDER BY子句 - 修复的代码（针对 sqlparser 0.56.0）
+            let order_by = if let Some(ref order_by_clause) = query.order_by {
+                match &order_by_clause.kind {
+                    ast::OrderByKind::Expressions(exprs) => Some(self.analyze_order_by(exprs)?),
+                    ast::OrderByKind::All(_) => {
+                        return Err(DBError::Planner("暂不支持 ORDER BY ALL 语法".to_string()));
+                    }
+                }
+            } else {
+                None
+            };
+
+            Ok(QueryPlan::Select {
+                table_name,
+                columns,
+                conditions,
+                order_by,
+            })
+        }
+    }
+
+    /// 解析 ORDER BY 子句
+    fn analyze_order_by(&self, order_by: &[ast::OrderByExpr]) -> Result<Vec<OrderByItem>> {
+        let mut items = Vec::new();
+
+        for order_expr in order_by {
+            let column = match &order_expr.expr {
+                ast::Expr::Identifier(ident) => ident.value.clone(),
+                ast::Expr::CompoundIdentifier(parts) => {
+                    if parts.len() == 1 {
+                        parts[0].value.clone()
+                    } else {
+                        return Err(DBError::Planner("ORDER BY 暂不支持复合标识符".to_string()));
+                    }
+                }
+                _ => {
+                    return Err(DBError::Planner(
+                        "ORDER BY 暂不支持表达式，仅支持列名".to_string(),
+                    ));
+                }
+            };
+
+            // 在 sqlparser 0.56.0 中，使用 options.asc
+            let direction = match order_expr.options.asc {
+                Some(true) | None => super::SortDirection::Asc, // 默认为升序
+                Some(false) => super::SortDirection::Desc,
+            };
+
+            items.push(super::OrderByItem { column, direction });
+        }
+
+        Ok(items)
+    }
+
+    /// 解析选择列
+    fn analyze_select_columns(&self, projection: &[ast::SelectItem]) -> Result<Vec<String>> {
+        let mut columns = Vec::new();
+
+        for item in projection {
+            match item {
+                ast::SelectItem::UnnamedExpr(expr) => {
+                    if let ast::Expr::Identifier(ident) = expr {
+                        columns.push(ident.value.clone());
+                    } else {
+                        return Err(DBError::Planner(
+                            "复杂表达式暂时不支持，请使用列名".to_string(),
+                        ));
+                    }
+                }
+                ast::SelectItem::ExprWithAlias { expr, alias } => {
+                    if let ast::Expr::Identifier(ident) = expr {
+                        columns.push(ident.value.clone());
+                    } else {
+                        return Err(DBError::Planner(
+                            "复杂表达式暂时不支持，请使用列名".to_string(),
+                        ));
+                    }
+                }
+                ast::SelectItem::Wildcard(_) => {
+                    columns.push("*".to_string());
+                }
+                ast::SelectItem::QualifiedWildcard(_, _) => {
+                    columns.push("*".to_string());
+                }
+            }
+        }
+
+        Ok(columns)
+    }
+
+    fn extract_table_name(&self, from: &[ast::TableWithJoins]) -> Result<String> {
+        if from.len() != 1 {
+            return Err(DBError::Planner("仅支持单表查询".to_string()));
+        }
+
+        match &from[0].relation {
+            ast::TableFactor::Table { name, .. } => Ok(name.to_string()),
+            _ => Err(DBError::Planner("仅支持简单表引用".to_string())),
+        }
     }
 }
