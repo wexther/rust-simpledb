@@ -310,29 +310,6 @@ mod tests {
     }
 
     #[test]
-    fn test_select_plan() {
-        let dialect = sqlparser::dialect::GenericDialect {};
-        let sql = "SELECT id, name FROM users WHERE left_num > 10;";
-        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
-        let planner = QueryPlanner::new();
-        let plan = planner.plan(&ast[0]).unwrap();
-
-        if let QueryPlan::Select {
-            table_name,
-            columns,
-            conditions,
-            order_by: _,
-        } = plan
-        {
-            assert_eq!(table_name, "users");
-            assert_eq!(columns, vec!["id", "name"]);
-            assert!(conditions.is_some());
-        } else {
-            panic!("预期生成Select查询计划");
-        }
-    }
-
-    #[test]
     fn test_select_expression_plan_1() {
         let dialect = sqlparser::dialect::GenericDialect {};
         let sql = "SELECT 1 * 2;";
@@ -415,6 +392,287 @@ mod tests {
             assert_eq!(order_by[0].direction, SortDirection::Asc);
             assert_eq!(order_by[1].column, "id");
             assert_eq!(order_by[1].direction, SortDirection::Desc);
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+
+        #[test]
+    fn test_select_plan() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE left_num > 10;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 补充完整的 conditions 测试
+            assert!(conditions.is_some());
+            let condition = conditions.unwrap();
+            
+            // 验证条件的具体内容：left_num > 10
+            match condition {
+                analyzer::Condition::Expression(expr) => {
+                    // 验证表达式是二元操作
+                    if let analyzer::Expression::Binary {
+                        left,
+                        operator,
+                        right,
+                    } = expr {
+                        // 验证左操作数是列名 "left_num"
+                        if let analyzer::Expression::Column(column_name) = &*left {
+                            assert_eq!(column_name, "left_num");
+                        } else {
+                            panic!("预期左操作数是列名");
+                        }
+                        
+                        // 验证操作符是 ">"
+                        assert_eq!(operator, analyzer::BinaryOperator::GreaterThan);
+                        
+                        // 验证右操作数是值 10
+                        if let analyzer::Expression::Value(value) = &*right {
+                            assert_eq!(*value, Value::Int(10));
+                        } else {
+                            panic!("预期右操作数是整数值 10");
+                        }
+                    } else {
+                        panic!("预期生成二元比较表达式");
+                    }
+                }
+                analyzer::Condition::IsNull(_) => panic!("预期生成表达式条件，而不是 IS NULL"),
+                analyzer::Condition::IsNotNull(_) => panic!("预期生成表达式条件，而不是 IS NOT NULL"),
+                analyzer::Condition::Constant(_) => panic!("预期生成表达式条件，而不是常量条件"),
+            }
+            
+            // 验证没有 ORDER BY 子句
+            assert!(order_by.is_none());
+            
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+
+        #[test]
+    fn test_select_with_complex_conditions() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE age > 18 AND name = 'Alice';";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 测试复杂条件：age > 18 AND name = 'Alice'
+            assert!(conditions.is_some());
+            let condition = conditions.unwrap();
+            
+            match condition {
+                analyzer::Condition::Expression(expr) => {
+                    if let analyzer::Expression::Binary {
+                        left,
+                        operator,
+                        right,
+                    } = expr {
+                        assert_eq!(operator, analyzer::BinaryOperator::And);
+                        
+                        // 验证左边条件：age > 18
+                        if let analyzer::Expression::Binary {
+                            left: age_left,
+                            operator: age_op,
+                            right: age_right,
+                        } = &*left {
+                            if let analyzer::Expression::Column(col) = &**age_left {
+                                assert_eq!(col, "age");
+                            }
+                            assert_eq!(*age_op, analyzer::BinaryOperator::GreaterThan);
+                            if let analyzer::Expression::Value(val) = &**age_right {
+                                assert_eq!(*val, Value::Int(18));
+                            }
+                        }
+                        
+                        // 验证右边条件：name = 'Alice'
+                        if let analyzer::Expression::Binary {
+                            left: name_left,
+                            operator: name_op,
+                            right: name_right,
+                        } = &*right {
+                            if let analyzer::Expression::Column(col) = &**name_left {
+                                assert_eq!(col, "name");
+                            }
+                            assert_eq!(*name_op, analyzer::BinaryOperator::Equal);
+                            if let analyzer::Expression::Value(val) = &**name_right {
+                                assert_eq!(*val, Value::String("Alice".to_string()));
+                            }
+                        }
+                    } else {
+                        panic!("预期生成二元逻辑表达式");
+                    }
+                }
+                _ => panic!("预期生成表达式条件"),
+            }
+            
+            assert!(order_by.is_none());
+            
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+    
+    #[test]
+    fn test_select_with_is_null_condition() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE email IS NULL;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 测试 IS NULL 条件
+            assert!(conditions.is_some());
+            let condition = conditions.unwrap();
+            
+            match condition {
+                analyzer::Condition::IsNull(expr) => {
+                    if let analyzer::Expression::Column(column_name) = expr {
+                        assert_eq!(column_name, "email");
+                    } else {
+                        panic!("预期 IS NULL 应用于列名");
+                    }
+                }
+                _ => panic!("预期生成 IS NULL 条件"),
+            }
+            
+            assert!(order_by.is_none());
+            
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+    
+    #[test]
+    fn test_select_with_is_not_null_condition() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE email IS NOT NULL;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 测试 IS NOT NULL 条件
+            assert!(conditions.is_some());
+            let condition = conditions.unwrap();
+            
+            match condition {
+                analyzer::Condition::IsNotNull(expr) => {
+                    if let analyzer::Expression::Column(column_name) = expr {
+                        assert_eq!(column_name, "email");
+                    } else {
+                        panic!("预期 IS NOT NULL 应用于列名");
+                    }
+                }
+                _ => panic!("预期生成 IS NOT NULL 条件"),
+            }
+            
+            assert!(order_by.is_none());
+            
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+    
+    #[test]
+    fn test_select_with_constant_condition() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users WHERE true;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 测试常量条件
+            assert!(conditions.is_some());
+            let condition = conditions.unwrap();
+            
+            match condition {
+                analyzer::Condition::Constant(val) => {
+                    assert_eq!(val, true);
+                }
+                _ => panic!("预期生成常量条件"),
+            }
+            
+            assert!(order_by.is_none());
+            
+        } else {
+            panic!("预期生成Select查询计划");
+        }
+    }
+    
+    #[test]
+    fn test_select_without_conditions() {
+        let dialect = sqlparser::dialect::GenericDialect {};
+        let sql = "SELECT id, name FROM users;";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = QueryPlanner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+    
+        if let QueryPlan::Select {
+            table_name,
+            columns,
+            conditions,
+            order_by,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            
+            // 测试没有 WHERE 条件的情况
+            assert!(conditions.is_none());
+            assert!(order_by.is_none());
+            
         } else {
             panic!("预期生成Select查询计划");
         }
