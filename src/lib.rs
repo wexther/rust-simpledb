@@ -1,5 +1,5 @@
 use query::result::QueryResult;
-use sqlparser::dialect::GenericDialect;
+use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser;
 use std::env;
 use std::fs;
@@ -74,7 +74,7 @@ impl SimpleDB {
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Vec<Result<QueryResult>>> {
-        let dialect = GenericDialect {};
+        let dialect = MySqlDialect {};
         let ast_statements = Parser::parse_sql(&dialect, sql)?;
 
         let mut query_processor = QueryProcessor::new(&mut self.storage_engine);

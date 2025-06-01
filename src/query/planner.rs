@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_create_table_plan() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "CREATE TABLE users (
     id INT(32) PRIMARY KEY,
     name VARCHAR(100),
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_drop_table_plan() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "DROP TABLE users;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_select_expression_plan_1() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT 1 * 2;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_select_expression_plan_2() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT 1300;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_select_expression_plan_3() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT 13.12;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -368,7 +368,7 @@ mod tests {
     }
     #[test]
     fn test_select_with_order_by() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE age > 18 ORDER BY name ASC, id DESC;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -399,7 +399,7 @@ mod tests {
 
         #[test]
     fn test_select_plan() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE left_num > 10;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -463,7 +463,7 @@ mod tests {
 
         #[test]
     fn test_select_with_complex_conditions() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE age > 18 AND name = 'Alice';";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -537,7 +537,7 @@ mod tests {
     
     #[test]
     fn test_select_with_is_null_condition() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE email IS NULL;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -577,7 +577,7 @@ mod tests {
     
     #[test]
     fn test_select_with_is_not_null_condition() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE email IS NOT NULL;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -617,7 +617,7 @@ mod tests {
     
     #[test]
     fn test_select_with_constant_condition() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users WHERE true;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
@@ -653,7 +653,7 @@ mod tests {
     
     #[test]
     fn test_select_without_conditions() {
-        let dialect = sqlparser::dialect::GenericDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let sql = "SELECT id, name FROM users;";
         let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
         let planner = QueryPlanner::new();
