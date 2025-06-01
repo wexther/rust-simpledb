@@ -6,11 +6,11 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 
+pub mod completion;
 pub mod error;
 pub mod executor;
 pub mod planner;
 pub mod storage;
-pub mod completion;
 
 use error::{DBError, Result};
 use storage::StorageEngine;
@@ -182,9 +182,9 @@ impl SimpleDB {
     }
 
     fn run_interactive_mode(&mut self) -> Result<()> {
+        use crate::completion::SQLHelper;
         use rustyline::error::ReadlineError;
         use rustyline::{ColorMode, Config, Editor};
-        use crate::completion::SQLHelper;
 
         // 配置 rustyline
         let config = Config::builder()
@@ -195,7 +195,7 @@ impl SimpleDB {
             .build();
 
         let mut rl = Editor::with_config(config)?;
-        
+
         // 设置自定义助手
         let mut helper = SQLHelper::new();
         helper.with_colored_prompt("\x1b[1;32msimple_db>\x1b[0m ".to_owned());
@@ -277,58 +277,6 @@ impl SimpleDB {
         Ok(())
     }
 
-    // 基础交互模式（不使用 rustyline）
-    fn run_interactive_mode_basic(&mut self) -> Result<()> {
-        println!("Simple DB 交互模式 (基础版)");
-        println!("输入 .help 查看帮助信息，输入 .exit 退出");
-        if self.config.verbose {
-            println!("详细模式已启用");
-        }
-        println!();
-
-        let stdin = io::stdin();
-        let mut reader = BufReader::new(stdin.lock());
-        let mut input = String::new();
-
-        loop {
-            print!("simple_db> ");
-            io::stdout().flush().unwrap();
-
-            input.clear();
-            match reader.read_line(&mut input) {
-                Ok(0) => break, // EOF
-                Ok(_) => {
-                    let trimmed = input.trim();
-
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-
-                    if self.handle_meta_command(trimmed)? {
-                        break;
-                    }
-
-                    if !trimmed.starts_with('.') {
-                        match self.execute_single_sql(trimmed) {
-                            Ok(result) => println!("{}", result),
-                            Err(e) => eprintln!("错误: {}", e),
-                        }
-                        println!();
-                    }
-                }
-                Err(e) => {
-                    eprintln!("读取输入失败: {}", e);
-                    break;
-                }
-            }
-        }
-
-        println!("正在保存数据库...");
-        self.save()?;
-        println!("再见!");
-        Ok(())
-    }
-
     // 扩展元命令处理，添加更多功能
     fn handle_meta_command(&mut self, command: &str) -> Result<bool> {
         match command {
@@ -340,19 +288,15 @@ impl SimpleDB {
                 self.print_interactive_help();
             }
 
-            ".tables" => {
-                match self.execute_single_sql("SHOW TABLES") {
-                    Ok(result) => println!("{}", result),
-                    Err(e) => eprintln!("获取表列表失败: {}", e),
-                }
-            }
+            ".tables" => match self.execute_single_sql("SHOW TABLES") {
+                Ok(result) => println!("{}", result),
+                Err(e) => eprintln!("获取表列表失败: {}", e),
+            },
 
-            ".save" => {
-                match self.save() {
-                    Ok(()) => println!("数据库已保存"),
-                    Err(e) => eprintln!("保存失败: {}", e),
-                }
-            }
+            ".save" => match self.save() {
+                Ok(()) => println!("数据库已保存"),
+                Err(e) => eprintln!("保存失败: {}", e),
+            },
 
             ".clear" => {
                 // 清屏
@@ -413,9 +357,7 @@ impl SimpleDB {
                 }
             }
 
-            _ => {
-                eprintln!("未知命令: {}. 输入 .help 查看可用命令", command);
-            }
+            _ => {}
         }
 
         Ok(false)
@@ -433,15 +375,14 @@ impl SimpleDB {
         println!("  .status                       # 显示数据库状态");
         println!("  .read <file_path>             # 执行SQL文件");
         println!();
-        #[cfg(feature = "rustyline")]
-        {
-            println!("增强功能 (rustyline):");
-            println!("  ↑↓ 箭头键                     # 浏览命令历史");
-            println!("  Tab 键                        # 自动补全");
-            println!("  Ctrl+C                        # 中断当前输入");
-            println!("  Ctrl+D                        # 退出程序");
-            println!();
-        }
+
+        println!("增强功能 (rustyline):");
+        println!("  ↑↓ 箭头键                     # 浏览命令历史");
+        println!("  Tab 键                        # 自动补全");
+        println!("  Ctrl+C                        # 中断当前输入");
+        println!("  Ctrl+D                        # 退出程序");
+        println!();
+
         println!("SQL示例:");
         println!("  CREATE TABLE users (id INT, name VARCHAR(50));");
         println!("  INSERT INTO users VALUES (1, 'Alice');");

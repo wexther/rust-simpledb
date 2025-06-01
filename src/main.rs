@@ -1,8 +1,16 @@
 use simple_db::SimpleDB;
 
 fn main() {
-    if let Err(e) = SimpleDB::from_args().and_then(|mut db| db.run()) {
-        eprintln!("{}", e);
-        std::process::exit(1);
+    match SimpleDB::from_args() {
+        Ok(mut db) => {
+            if let Err(e) = db.run() {
+                eprintln!("运行失败: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("初始化失败: {}", e);
+            std::process::exit(1);
+        }
     }
 }
