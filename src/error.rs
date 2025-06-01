@@ -32,6 +32,10 @@ pub enum DBError {
     /// 模糊不清的错误信息4
     #[error("{0}")]
     Other(String),
+
+    /// Readline 错误
+    #[error("交互式输入错误: {0}")]
+    Readline(String),
 }
 
 impl From<parser::ParserError> for DBError {
@@ -43,5 +47,12 @@ impl From<parser::ParserError> for DBError {
 impl From<io::Error> for DBError {
     fn from(err: io::Error) -> Self {
         DBError::IO(err.to_string())
+    }
+}
+
+// 添加 ReadlineError 的转换
+impl From<rustyline::error::ReadlineError> for DBError {
+    fn from(err: rustyline::error::ReadlineError) -> Self {
+        DBError::Readline(err.to_string())
     }
 }
