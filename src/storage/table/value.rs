@@ -165,6 +165,18 @@ impl Value {
     }
 }
 
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Int(n) => write!(f, "{}", n),
+            Value::Float(fl) => write!(f, "{}", fl),
+            Value::String(s) => write!(f, "{}", s),
+            Value::Boolean(b) => write!(f, "{}", b),
+            Value::Null => write!(f, "NULL"),
+        }
+    }
+}
+
 /// 表示列定义的结构
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct ColumnDef {

@@ -6,7 +6,7 @@ use crate::storage::table::Value;
 #[derive(Debug)]
 pub struct ResultSet {
     pub columns: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+    pub rows: Vec<Vec<Value>>, // 改为 Value 类型
 }
 
 impl fmt::Display for ResultSet {
@@ -35,7 +35,15 @@ impl fmt::Display for ResultSet {
         for row in &self.rows {
             write!(f, "| ")?;
             for (i, cell) in row.iter().enumerate() {
-                write!(f, "{}", cell)?;
+                // 将 Value 转换为字符串显示
+                let cell_str = match cell {
+                    Value::Int(n) => n.to_string(),
+                    Value::Float(f) => f.to_string(),
+                    Value::String(s) => s.clone(),
+                    Value::Boolean(b) => b.to_string(),
+                    Value::Null => "NULL".to_string(),
+                };
+                write!(f, "{}", cell_str)?;
                 if i < row.len() - 1 {
                     write!(f, " | ")?;
                 }

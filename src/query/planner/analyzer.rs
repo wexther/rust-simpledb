@@ -1,10 +1,10 @@
 use crate::error::{DBError, Result};
-use crate::query::planner::QueryPlan;
+use crate::query::planner::Plan;
 use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
 use sqlparser::ast;
 use std::fmt;
 
-use super::OrderByItem;
+use super::{OrderByItem, SelectColumns, SelectItem};
 
 /// 表示表达式的枚举
 #[derive(Clone, Debug, PartialEq)]
@@ -202,9 +202,9 @@ impl Condition {
 }
 
 /// 查询分析器 - 负责解析SQL AST并转换为内部结构
-pub struct QueryAnalyzer;
+pub struct Analyzer;
 
-impl QueryAnalyzer {
+impl Analyzer {
     /// 从SQL AST表达式转换为内部表达式
     pub fn convert_expr(&self, expr: &ast::Expr) -> Result<Expression> {
         match expr {
@@ -240,7 +240,7 @@ impl QueryAnalyzer {
 
     /// 从SQL AST条件转换为内部条件
     pub fn analyze_condition(expr: &ast::Expr) -> Result<Condition> {
-        let analyzer = QueryAnalyzer::new();
+        let analyzer = Analyzer::new();
 
         match expr {
             // IS NULL
@@ -563,46 +563,33 @@ impl QueryAnalyzer {
         todo!();
     }
 
-    pub fn analyze_select(&self, query: &ast::Query) -> Result<QueryPlan> {
+    pub fn analyze_select(&self, query: &ast::Query) -> Result<Plan> {
         let body = match &*query.body {
             ast::SetExpr::Select(select) => &**select,
             _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
         };
 
         if body.from.is_empty() {
-            // 无表表达式查询处理（保持不变）
-            let mut expressions = Vec::new();
-            for item in &body.projection {
-                match item {
-                    ast::SelectItem::UnnamedExpr(expr) => {
-                        let name = format!("{}", expr);
-                        let value = self.analyze_expr_to_value(expr)?;
-                        expressions.push((name, value));
-                    }
-                    ast::SelectItem::ExprWithAlias { expr, alias } => {
-                        let name = alias.to_string();
-                        let value = self.analyze_expr_to_value(expr)?;
-                        expressions.push((name, value));
-                    }
-                    _ => return Err(DBError::Planner("不支持的SELECT项类型".to_string())),
-                }
-            }
-            return Ok(QueryPlan::ExpressionSelect { expressions });
-        } else {
-            // 有表的查询
-            let table_name = self.extract_table_name(&body.from)?;
-
-            // 解析选择列
+            // 无表查询：SELECT 1+1, 'hello'
             let columns = self.analyze_select_columns(&body.projection)?;
 
-            // 解析WHERE条件
+            Ok(Plan::Select {
+                table_name: None, // 无表查询
+                columns,
+                conditions: None, // 无表查询通常没有 WHERE
+                order_by: None,   // 无表查询通常没有 ORDER BY
+            })
+        } else {
+            // 有表查询：SELECT col FROM table
+            let table_name = self.extract_table_name(&body.from)?;
+            let columns = self.analyze_select_columns(&body.projection)?;
+
             let conditions = if let Some(selection) = &body.selection {
                 Some(Self::analyze_condition(selection)?)
             } else {
                 None
             };
 
-            // 解析ORDER BY子句 - 修复的代码（针对 sqlparser 0.56.0）
             let order_by = if let Some(ref order_by_clause) = query.order_by {
                 match &order_by_clause.kind {
                     ast::OrderByKind::Expressions(exprs) => Some(self.analyze_order_by(exprs)?),
@@ -614,15 +601,14 @@ impl QueryAnalyzer {
                 None
             };
 
-            Ok(QueryPlan::Select {
-                table_name,
+            Ok(Plan::Select {
+                table_name: Some(table_name),
                 columns,
                 conditions,
                 order_by,
             })
         }
     }
-
     /// 解析 ORDER BY 子句
     fn analyze_order_by(&self, order_by: &[ast::OrderByExpr]) -> Result<Vec<OrderByItem>> {
         let mut items = Vec::new();
@@ -657,39 +643,58 @@ impl QueryAnalyzer {
     }
 
     /// 解析选择列
-    fn analyze_select_columns(&self, projection: &[ast::SelectItem]) -> Result<Vec<String>> {
+    fn analyze_select_columns(&self, projection: &[ast::SelectItem]) -> Result<SelectColumns> {
+        // 检查是否有通配符
+        let has_wildcard = projection.iter().any(|item| {
+            matches!(
+                item,
+                ast::SelectItem::Wildcard(_) | ast::SelectItem::QualifiedWildcard(_, _)
+            )
+        });
+
+        if has_wildcard {
+            // 如果有通配符
+            if projection.len() > 1 {
+                return Err(DBError::Parse("通配符 * 不能与其他列同时使用".to_string()));
+            }
+            return Ok(SelectColumns::Wildcard);
+        }
+
+        // 处理具体的列
         let mut columns = Vec::new();
 
         for item in projection {
             match item {
                 ast::SelectItem::UnnamedExpr(expr) => {
-                    if let ast::Expr::Identifier(ident) = expr {
-                        columns.push(ident.value.clone());
-                    } else {
-                        return Err(DBError::Planner(
-                            "复杂表达式暂时不支持，请使用列名".to_string(),
-                        ));
-                    }
+                    let expression = self.convert_expr(expr)?;
+                    let original_text = format!("{}", expr);
+
+                    columns.push(SelectItem {
+                        expr: expression,
+                        alias: None,
+                        original_text,
+                    });
                 }
+
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    if let ast::Expr::Identifier(ident) = expr {
-                        columns.push(ident.value.clone());
-                    } else {
-                        return Err(DBError::Planner(
-                            "复杂表达式暂时不支持，请使用列名".to_string(),
-                        ));
-                    }
+                    let expression = self.convert_expr(expr)?;
+                    let original_text = format!("{}", expr);
+
+                    columns.push(SelectItem {
+                        expr: expression,
+                        alias: Some(alias.to_string()),
+                        original_text,
+                    });
                 }
-                ast::SelectItem::Wildcard(_) => {
-                    columns.push("*".to_string());
-                }
-                ast::SelectItem::QualifiedWildcard(_, _) => {
-                    columns.push("*".to_string());
+
+                ast::SelectItem::Wildcard(_) | ast::SelectItem::QualifiedWildcard(_, _) => {
+                    // 这种情况在前面已经处理了
+                    unreachable!("通配符应该在前面已经处理");
                 }
             }
         }
 
-        Ok(columns)
+        Ok(SelectColumns::Columns(columns))
     }
 
     fn extract_table_name(&self, from: &[ast::TableWithJoins]) -> Result<String> {
