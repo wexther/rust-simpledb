@@ -1,19 +1,17 @@
 use executor::QueryResult;
+use planner::Planner;
 use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser;
 use std::env;
 use std::fs;
 use std::path::Path;
-use planner::Planner;
 
 pub mod error;
-pub mod query;
-pub mod storage;
 pub mod executor;
 pub mod planner;
+pub mod storage;
 
 use error::{DBError, Result};
-// use query::QueryProcessor;
 use storage::StorageEngine;
 
 pub struct DBConfig {

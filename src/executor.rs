@@ -76,7 +76,6 @@ impl fmt::Display for QueryResult {
     }
 }
 
-
 /// 统一SQL执行器，处理所有类型的SQL操作
 pub struct Executor<'a> {
     storage: &'a mut StorageEngine,

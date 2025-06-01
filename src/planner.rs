@@ -716,8 +716,6 @@ impl Condition {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::storage::table::DataType;
@@ -1448,7 +1446,7 @@ mod tests {
                 // 验证第一列：表达式无别名，使用原始文本作为列名
                 assert!(items[0].alias.is_none());
                 let original_text = &items[0].original_text;
-                assert_eq!( original_text, "id * price * 2" );
+                assert_eq!(original_text, "id * price * 2");
 
                 // 验证第二列：有别名
                 assert_eq!(items[1].alias.as_ref().unwrap(), "user_name");
