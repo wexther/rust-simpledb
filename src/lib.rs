@@ -1,16 +1,19 @@
-use query::result::QueryResult;
+use executor::QueryResult;
 use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser;
 use std::env;
 use std::fs;
 use std::path::Path;
+use planner::Planner;
 
 pub mod error;
 pub mod query;
 pub mod storage;
+pub mod executor;
+pub mod planner;
 
 use error::{DBError, Result};
-use query::QueryProcessor;
+// use query::QueryProcessor;
 use storage::StorageEngine;
 
 pub struct DBConfig {
@@ -77,11 +80,16 @@ impl SimpleDB {
         let dialect = MySqlDialect {};
         let ast_statements = Parser::parse_sql(&dialect, sql)?;
 
-        let mut query_processor = QueryProcessor::new(&mut self.storage_engine);
+        // let mut query_processor = QueryProcessor::new(&mut self.storage_engine);
+        let mut executor = executor::Executor::new(&mut self.storage_engine);
+        let planner = planner::Planner::new();
+
         let mut results = Vec::new();
 
         for stmt in ast_statements {
-            results.push(query_processor.execute(stmt));
+            let plan = planner.plan(&stmt)?;
+            let result = executor.execute(plan);
+            results.push(result);
         }
 
         Ok(results)
