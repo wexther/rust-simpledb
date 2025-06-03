@@ -50,7 +50,7 @@ impl fmt::Display for ResultSet {
 
         // 打印表头
         write!(f, "|")?;
-        for (i, (column_name, &width)) in self.columns.iter().zip(&column_widths).enumerate() {
+        for (column_name, &width) in self.columns.iter().zip(&column_widths) {
             write!(f, " {:<width$} |", column_name, width = width - 2)?;
         }
         writeln!(f)?;
@@ -153,7 +153,7 @@ impl<'a> Executor<'a> {
                     }
                 } else {
                     // 有列名插入：需要重新排列值的顺序以匹配表的列顺序
-                    for (row_index, row) in rows.iter().enumerate() {
+                    for  row in rows.iter() {
                         // 创建完整的行数据，未指定的列使用默认值
                         let mut full_row = Vec::with_capacity(table_columns.len());
 
