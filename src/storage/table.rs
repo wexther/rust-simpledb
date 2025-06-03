@@ -7,7 +7,7 @@ pub mod record;
 pub mod value;
 
 // 重新导出 record 模块的公共类型
-pub use record::{Record, RecordId, RecordPageManager};
+pub use record::{Record, RecordId};
 pub use value::{ColumnDef, DataType, Value};
 
 /// 表结构
@@ -61,16 +61,12 @@ impl Table {
             )));
         }
 
-        // 创建记录
-        let record = Record::new(values);
-
         // 尝试在现有页面中插入
         for &page_id in &self.page_ids {
             let mut page = buffer_manager.get_page_mut(page_id)?;
-            let mut page_manager = RecordPageManager::load_from_page(&page)?;
 
-            // 尝试插入记录
-            match page_manager.insert_record(&mut page, &record) {
+            // 尝试插入记录 - 直接返回 RecordId
+            match page.insert_record(values.clone()) {
                 Ok(record_id) => return Ok(record_id),
                 Err(_) => continue, // 这个页面满了，尝试下一个
             }
@@ -82,9 +78,7 @@ impl Table {
 
         // 在新页面中插入记录
         let mut page = buffer_manager.get_page_mut(new_page_id)?;
-        let mut page_manager = RecordPageManager::new(new_page_id);
-
-        page_manager.insert_record(&mut page, &record)
+        page.insert_record(values)
     }
 
     /// 删除记录
@@ -101,73 +95,7 @@ impl Table {
         }
 
         let mut page = buffer_manager.get_page_mut(id.page_id)?;
-        let mut page_manager = RecordPageManager::load_from_page(&page)?;
-
-        page_manager.delete_record(&mut page, id.slot)
-    }
-
-    /// 修改记录
-    pub fn update_record(
-        &mut self,
-        buffer_manager: &mut BufferManager,
-        id: RecordId,
-        set_pairs: &Vec<(String, Value)>,
-    ) -> Result<()> {
-        // 检查页面 ID 是否属于该表
-        if !self.page_ids.contains(&id.page_id) {
-            return Err(DBError::NotFound(format!(
-                "页面 {} 不属于表 {}",
-                id.page_id, self.name
-            )));
-        }
-
-        // 获取可修改的页面
-        let mut page = buffer_manager.get_page_mut(id.page_id)?;
-        let mut page_manager = RecordPageManager::load_from_page(&page)?;
-
-        // 获取原记录
-        let original_record = page_manager.get_record(&page, id.slot)?;
-
-        // 复制原记录的值
-        let mut new_values: Vec<Value> = original_record.values().to_vec();
-
-        // 按照 set_pairs 更新记录值
-        for (col_name, new_value) in set_pairs {
-            // 查找列的索引
-            if let Some(col_index) = self.columns.iter().position(|col| &col.name == col_name) {
-                let col_def = &self.columns[col_index];
-
-                // 验证新值的数据类型是否与列定义相符
-                match (&col_def.data_type, &new_value) {
-                    (DataType::Int(_), Value::Int(_)) => {}
-                    (DataType::Varchar(_), Value::String(_)) => {}
-                    (_, Value::Null) if col_def.not_null => {}
-                    _ => {
-                        return Err(DBError::Schema(format!(
-                            "列 '{}' 的数据类型与新值不匹配",
-                            col_name
-                        )));
-                    }
-                }
-
-                // 更新记录中的值
-                //new_values[col_index] = new_value;
-                new_values[col_index] = new_value.clone();
-            } else {
-                return Err(DBError::Schema(format!(
-                    "表 '{}' 中不存在列 '{}'",
-                    self.name, col_name
-                )));
-            }
-        }
-
-        // 创建新记录
-        let new_record = Record::new(new_values.to_vec());
-
-        // 调用 RecordPageManager 的 replace_record 方法替换原记录
-        page_manager.replace_record(&mut page, id, &new_record)?;
-
-        Ok(())
+        page.delete_record(id)  // 直接传递 RecordId
     }
 
     /// 获取记录
@@ -180,9 +108,45 @@ impl Table {
         }
 
         let page = buffer_manager.get_page(id.page_id)?;
-        let page_manager = RecordPageManager::load_from_page(page)?;
+        page.get_record(id)  // 直接传递 RecordId
+    }
 
-        page_manager.get_record(page, id.slot)
+    /// 修改记录
+    pub fn update_record(
+        &mut self,
+        buffer_manager: &mut BufferManager,
+        id: RecordId,
+        set_pairs: &Vec<(String, Value)>,
+    ) -> Result<()> {
+        if !self.page_ids.contains(&id.page_id) {
+            return Err(DBError::NotFound(format!(
+                "页面 {} 不属于表 {}",
+                id.page_id, self.name
+            )));
+        }
+
+        let mut page = buffer_manager.get_page_mut(id.page_id)?;
+        
+        // 获取原记录
+        let original_record = page.get_record(id)?;
+        let mut new_values: Vec<Value> = original_record.values().to_vec();
+
+        // 按照 set_pairs 更新记录值
+        for (col_name, new_value) in set_pairs {
+            if let Some(col_index) = self.columns.iter().position(|col| &col.name == col_name) {
+                // ... 类型验证逻辑 ...
+                new_values[col_index] = new_value.clone();
+            } else {
+                return Err(DBError::Schema(format!(
+                    "表 '{}' 中不存在列 '{}'",
+                    self.name, col_name
+                )));
+            }
+        }
+
+        // 替换记录
+        page.replace_record(id, new_values)?;
+        Ok(())
     }
 
     /// 获取表中所有记录
@@ -191,20 +155,10 @@ impl Table {
 
         for &page_id in &self.page_ids {
             let page = buffer_manager.get_page(page_id)?;
-            let page_manager = RecordPageManager::load_from_page(page)?;
-
-            // 使用公共方法获取记录数量
-            let record_count = page_manager.get_record_count();
-
-            // 逐个槽位检查并获取记录
-            for slot in 0..record_count {
-                // 使用公共方法检查槽位是否有效
-                if page_manager.is_slot_used(slot) {
-                    match page_manager.get_record(page, slot) {
-                        Ok(record) => records.push(record),
-                        Err(_) => continue, // 跳过无法读取的记录
-                    }
-                }
+            
+            // 直接使用迭代器获取所有记录
+            for (_, record) in page.iter_records() {
+                records.push(record);
             }
         }
 

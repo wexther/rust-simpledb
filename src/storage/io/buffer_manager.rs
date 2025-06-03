@@ -98,7 +98,7 @@ impl BufferManager {
     pub fn flush_page(&mut self, page_id: PageId) -> Result<()> {
         if let Some(page) = self.pages.get_mut(&page_id) {
             if page.is_dirty() {
-                self.disk_manager.write_page(page_id, page.data())?;
+                self.disk_manager.write_page(page_id, &page.serialize()?)?;
                 page.clear_dirty();
             }
         }
@@ -124,7 +124,7 @@ impl BufferManager {
         let data = self.disk_manager.read_page(page_id)?;
 
         // 创建页面并加入缓冲池
-        let page = Page::with_data(page_id, &data);
+        let page = Page::from_data(page_id, &data)?;
         self.pages.insert(page_id, page);
 
         Ok(())

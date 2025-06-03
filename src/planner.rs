@@ -699,7 +699,6 @@ impl Condition {
     }
 
     pub fn evaluate(&self, record: &Record, columns: &[ColumnDef]) -> Result<bool> {
-        // 从 analyzer.rs 移过来的实现
         match self {
             Condition::Expression(expr) => {
                 let result = expr.evaluate(record, columns)?;
