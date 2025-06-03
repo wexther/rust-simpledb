@@ -105,6 +105,7 @@ pub enum Plan {
     },
     Insert {
         table_name: String,
+        /// 空时表示插入所有列， 非空时表示指定列
         columns: Vec<String>,
         rows: Vec<Vec<Value>>,
     },
@@ -468,18 +469,14 @@ impl Planner {
     }
 
     fn plan_insert(&self, insert: &ast::Insert) -> Result<Plan> {
-        // 修改这里的模式匹配
         let table_name = match &insert.table {
-            // 改为直接获取 ObjectName
             ast::TableObject::TableName(name) => name.to_string(),
             _ => return Err(DBError::Parse("仅支持简单表引用".to_string())),
         };
 
         // 获取列名（如果 SQL 中指定了列名）
         let columns: Vec<String> = if insert.columns.is_empty() {
-            // 如果没有指定列名，需要从表结构中获取所有列名
-            // 这里可能需要访问 catalog 来获取表的列定义
-            return Err(DBError::Parse("暂不支持不指定列名的插入".to_string()));
+            Vec::new()
         } else {
             insert.columns.iter().map(|col| col.to_string()).collect()
         };
@@ -495,13 +492,14 @@ impl Planner {
                 }
 
                 // 验证值的数量与列数是否匹配
-                if row_values.len() != columns.len() {
-                    return Err(DBError::Parse(format!(
-                        "第 {} 行的值数量({})与列数({})不匹配",
-                        rows.len() + 1,
-                        row_values.len(),
-                        columns.len()
-                    )));
+                if !columns.is_empty() {
+                    if row_values.len() != columns.len() {
+                        return Err(DBError::Parse(format!(
+                            "数量({})与指定列数({})不匹配",
+                            row_values.len(),
+                            columns.len()
+                        )));
+                    }
                 }
 
                 rows.push(row_values);
@@ -1457,5 +1455,82 @@ mod tests {
         } else {
             panic!("预期生成Select查询计划");
         }
+    }
+
+    #[test]
+    fn test_insert_with_columns() {
+        let dialect = sqlparser::dialect::MySqlDialect {};
+        let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob');";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = Planner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let Plan::Insert {
+            table_name,
+            columns,
+            rows,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert_eq!(columns, vec!["id", "name"]);
+            assert_eq!(rows.len(), 2);
+
+            // 第一行
+            assert_eq!(rows[0].len(), 2);
+            assert_eq!(rows[0][0], Value::Int(1));
+            assert_eq!(rows[0][1], Value::String("Alice".to_string()));
+
+            // 第二行
+            assert_eq!(rows[1].len(), 2);
+            assert_eq!(rows[1][0], Value::Int(2));
+            assert_eq!(rows[1][1], Value::String("Bob".to_string()));
+        } else {
+            panic!("预期生成Insert查询计划");
+        }
+    }
+
+    #[test]
+    fn test_insert_without_columns() {
+        let dialect = sqlparser::dialect::MySqlDialect {};
+        let sql = "INSERT INTO users VALUES (1, 'Alice', 25), (2, 'Bob', 30);";
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = Planner::new();
+        let plan = planner.plan(&ast[0]).unwrap();
+
+        if let Plan::Insert {
+            table_name,
+            columns,
+            rows,
+        } = plan
+        {
+            assert_eq!(table_name, "users");
+            assert!(columns.is_empty()); // 无列名
+            assert_eq!(rows.len(), 2);
+
+            // 第一行
+            assert_eq!(rows[0].len(), 3);
+            assert_eq!(rows[0][0], Value::Int(1));
+            assert_eq!(rows[0][1], Value::String("Alice".to_string()));
+            assert_eq!(rows[0][2], Value::Int(25));
+
+            // 第二行
+            assert_eq!(rows[1].len(), 3);
+            assert_eq!(rows[1][0], Value::Int(2));
+            assert_eq!(rows[1][1], Value::String("Bob".to_string()));
+            assert_eq!(rows[1][2], Value::Int(30));
+        } else {
+            panic!("预期生成Insert查询计划");
+        }
+    }
+
+    #[test]
+    fn test_insert_column_value_mismatch() {
+        let dialect = sqlparser::dialect::MySqlDialect {};
+        let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice', 25);"; // 3个值但只有2列
+        let ast = sqlparser::parser::Parser::parse_sql(&dialect, sql).unwrap();
+        let planner = Planner::new();
+        let result = planner.plan(&ast[0]);
+
+        assert!(result.is_err());
     }
 }

@@ -37,23 +37,25 @@ impl SQLHelper {
 
     fn highlight_sql_syntax(&self, line: &str) -> String {
         let mut result = line.to_string();
-        
+
         // 高亮 SQL 关键字为蓝色
         for keyword in SQLCompleter::SQL_KEYWORDS {
             let pattern = format!(r"\b{}\b", keyword);
             if let Ok(re) = regex::Regex::new(&pattern) {
-                result = re.replace_all(&result, |caps: &regex::Captures| {
-                    format!("\x1b[34m{}\x1b[0m", &caps[0])  // 蓝色
-                }).to_string();
+                result = re
+                    .replace_all(&result, |caps: &regex::Captures| {
+                        format!("\x1b[34m{}\x1b[0m", &caps[0]) // 蓝色
+                    })
+                    .to_string();
             }
         }
-        
+
         // 高亮字符串为绿色
-        result = result.replace("'", "\x1b[32m'\x1b[0m");  // 简化版本
-        
+        result = result.replace("'", "\x1b[32m'\x1b[0m"); // 简化版本
+
         // 高亮数字为黄色
         // ... 更多高亮规则
-        
+
         result
     }
 }
@@ -78,7 +80,7 @@ impl Highlighter for SQLHelper {
     fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
         // 先应用 SQL 语法高亮
         let sql_highlighted = self.highlight_sql_syntax(line);
-        
+
         // 然后应用括号匹配高亮
         if sql_highlighted != line {
             // 如果已经高亮了，返回高亮版本
@@ -107,22 +109,93 @@ impl SQLCompleter {
 
     // SQL 关键字
     const SQL_KEYWORDS: &'static [&'static str] = &[
-        "SELECT", "FROM", "WHERE", "INSERT", "INTO", "VALUES", "UPDATE", "SET",
-        "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "INDEX", "PRIMARY", "KEY",
-        "FOREIGN", "REFERENCES", "CONSTRAINT", "UNIQUE", "NOT", "NULL", "AUTO_INCREMENT",
-        "DEFAULT", "CHECK", "AND", "OR", "ORDER", "BY", "GROUP", "HAVING", "LIMIT",
-        "OFFSET", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "ON", "AS", "DISTINCT",
-        "UNION", "ALL", "EXISTS", "IN", "BETWEEN", "LIKE", "IS", "TRUE", "FALSE",
-        "COUNT", "SUM", "AVG", "MIN", "MAX", "CONCAT", "SUBSTRING", "LENGTH",
-        "UPPER", "LOWER", "TRIM", "REPLACE", "NOW", "DATE", "TIME", "YEAR", "MONTH", "DAY",
-        "INT", "INTEGER", "VARCHAR", "CHAR", "TEXT", "FLOAT", "DOUBLE", "DECIMAL",
-        "BOOLEAN", "BOOL", "DATE", "TIME", "DATETIME", "TIMESTAMP",
+        "SELECT",
+        "FROM",
+        "WHERE",
+        "INSERT",
+        "INTO",
+        "VALUES",
+        "UPDATE",
+        "SET",
+        "DELETE",
+        "CREATE",
+        "TABLE",
+        "DROP",
+        "ALTER",
+        "INDEX",
+        "PRIMARY",
+        "KEY",
+        "FOREIGN",
+        "REFERENCES",
+        "CONSTRAINT",
+        "UNIQUE",
+        "NOT",
+        "NULL",
+        "AUTO_INCREMENT",
+        "DEFAULT",
+        "CHECK",
+        "AND",
+        "OR",
+        "ORDER",
+        "BY",
+        "GROUP",
+        "HAVING",
+        "LIMIT",
+        "OFFSET",
+        "JOIN",
+        "LEFT",
+        "RIGHT",
+        "INNER",
+        "OUTER",
+        "ON",
+        "AS",
+        "DISTINCT",
+        "UNION",
+        "ALL",
+        "EXISTS",
+        "IN",
+        "BETWEEN",
+        "LIKE",
+        "IS",
+        "TRUE",
+        "FALSE",
+        "COUNT",
+        "SUM",
+        "AVG",
+        "MIN",
+        "MAX",
+        "CONCAT",
+        "SUBSTRING",
+        "LENGTH",
+        "UPPER",
+        "LOWER",
+        "TRIM",
+        "REPLACE",
+        "NOW",
+        "DATE",
+        "TIME",
+        "YEAR",
+        "MONTH",
+        "DAY",
+        "INT",
+        "INTEGER",
+        "VARCHAR",
+        "CHAR",
+        "TEXT",
+        "FLOAT",
+        "DOUBLE",
+        "DECIMAL",
+        "BOOLEAN",
+        "BOOL",
+        "DATE",
+        "TIME",
+        "DATETIME",
+        "TIMESTAMP",
     ];
 
     // 元命令
-    const META_COMMANDS: &'static [&'static str] = &[
-        ".exit", ".quit", ".help", ".tables", ".schema", ".save",
-    ];
+    const META_COMMANDS: &'static [&'static str] =
+        &[".exit", ".quit", ".help", ".tables", ".schema", ".save"];
 }
 
 impl Completer for SQLCompleter {
@@ -135,12 +208,12 @@ impl Completer for SQLCompleter {
         ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Pair>), ReadlineError> {
         let line_up_to_pos = &line[..pos];
-        
+
         // 如果是元命令，提供元命令补全
         if line_up_to_pos.trim().starts_with('.') {
             let start = line_up_to_pos.rfind('.').unwrap_or(0);
             let prefix = &line_up_to_pos[start..];
-            
+
             let matches: Vec<Pair> = Self::META_COMMANDS
                 .iter()
                 .filter(|&cmd| cmd.starts_with(prefix))
@@ -149,7 +222,7 @@ impl Completer for SQLCompleter {
                     replacement: cmd.to_string(),
                 })
                 .collect();
-                
+
             return Ok((start, matches));
         }
 
@@ -163,9 +236,9 @@ impl Completer for SQLCompleter {
             .rfind(|c: char| c.is_whitespace() || c == '(' || c == ')' || c == ',')
             .map(|i| i + 1)
             .unwrap_or(0);
-        
+
         let prefix = &line_up_to_pos[word_start..].to_uppercase();
-        
+
         let matches: Vec<Pair> = Self::SQL_KEYWORDS
             .iter()
             .filter(|&keyword| keyword.starts_with(prefix))

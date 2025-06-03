@@ -98,59 +98,58 @@ impl<'a> Executor<'a> {
                 Ok(_) => Ok(QueryResult::Success),
                 Err(e) => Err(DBError::Schema(e.to_string())),
             },
+
             Plan::Insert {
                 table_name,
                 columns,
                 rows,
             } => {
-                // 获取表的列定义
+                // 获取表定义
                 let table_columns = self.storage.get_table_columns(table_name)?;
 
-                // 验证指定的列名是否都存在于表中
-                for column_name in columns {
-                    if !table_columns.iter().any(|col| &col.name == column_name) {
-                        return Err(DBError::Schema(format!(
-                            "表 '{}' 中不存在列 '{}'",
-                            table_name, column_name
-                        )));
-                    }
-                }
-
-                // 处理每一行数据
-                for (row_index, row_values) in rows.iter().enumerate() {
-                    // 检查每行的值数量是否与指定的列数匹配
-                    if row_values.len() != columns.len() {
-                        return Err(DBError::Schema(format!(
-                            "第 {} 行的值数量({})与指定的列数({})不匹配",
-                            row_index + 1,
-                            row_values.len(),
-                            columns.len()
-                        )));
-                    }
-
-                    // 创建一个按表结构顺序排列的值数组
-                    let mut ordered_values = Vec::with_capacity(table_columns.len());
-
-                    // 按照表的列定义顺序填充值
-                    for table_column in &table_columns {
-                        if let Some(pos) = columns.iter().position(|col| col == &table_column.name)
-                        {
-                            // 找到了对应的列，使用提供的值
-                            let value = &row_values[pos];
-
-                            // 可以添加类型验证
-                            self.validate_value_type(value, &table_column.data_type)?;
-
-                            ordered_values.push(value.clone());
-                        } else {
-                            // 没有为这个列提供值，使用默认值
-                            let default_value = self.get_default_value(&table_column)?;
-                            ordered_values.push(default_value);
+                if columns.is_empty() {
+                    // 无列名插入：验证值数量是否与表的所有列匹配
+                    for (row_index, row) in rows.iter().enumerate() {
+                        if row.len() != table_columns.len() {
+                            return Err(DBError::Execution(format!(
+                                "第 {} 行的值数量({})与表的列数({})不匹配",
+                                row_index + 1,
+                                row.len(),
+                                table_columns.len()
+                            )));
                         }
                     }
 
-                    // 插入记录到存储引擎
-                    self.storage.insert_record(table_name, ordered_values)?;
+                    // 按表定义顺序插入所有列
+                    for row in rows {
+                        self.storage.insert_record(table_name, row.clone())?;
+                    }
+                } else {
+                    // 有列名插入：需要重新排列值的顺序以匹配表的列顺序
+                    for (row_index, row) in rows.iter().enumerate() {
+                        // 创建完整的行数据，未指定的列使用默认值
+                        let mut full_row = Vec::with_capacity(table_columns.len());
+
+                        for table_col in &table_columns {
+                            if let Some(column_index) =
+                                columns.iter().position(|col| col == &table_col.name)
+                            {
+                                // 使用提供的值
+                                full_row.push(row[column_index].clone());
+                            } else {
+                                // 使用默认值或 NULL
+                                if table_col.not_null {
+                                    return Err(DBError::Execution(format!(
+                                        "列 '{}' 不允许为 NULL，但未在 INSERT 中指定值",
+                                        table_col.name
+                                    )));
+                                }
+                                full_row.push(Value::Null);
+                            }
+                        }
+
+                        self.storage.insert_record(table_name, full_row)?;
+                    }
                 }
 
                 Ok(QueryResult::Success)
