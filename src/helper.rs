@@ -1,10 +1,10 @@
+use rustyline::Context;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
-use rustyline::hint::{Hinter, HistoryHinter};
-use rustyline::validate::{self, MatchingBracketValidator, Validator};
-use rustyline::{Cmd, CompletionType, Config, Context, KeyEvent};
-use rustyline_derive::{Completer, Helper, Highlighter, Hinter, Validator};
+use rustyline::hint::HistoryHinter;
+use rustyline::validate::MatchingBracketValidator;
+use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
 
 #[derive(Helper, Completer, Hinter, Validator)]
