@@ -95,7 +95,7 @@ impl Table {
         }
 
         let mut page = buffer_manager.get_page_mut(id.page_id)?;
-        page.delete_record(id)  // 直接传递 RecordId
+        page.delete_record(id) // 直接传递 RecordId
     }
 
     /// 获取记录
@@ -108,7 +108,7 @@ impl Table {
         }
 
         let page = buffer_manager.get_page(id.page_id)?;
-        page.get_record(id)  // 直接传递 RecordId
+        page.get_record(id) // 直接传递 RecordId
     }
 
     /// 修改记录
@@ -126,7 +126,7 @@ impl Table {
         }
 
         let mut page = buffer_manager.get_page_mut(id.page_id)?;
-        
+
         // 获取原记录
         let original_record = page.get_record(id)?;
         let mut new_values: Vec<Value> = original_record.values().to_vec();
@@ -155,7 +155,7 @@ impl Table {
 
         for &page_id in &self.page_ids {
             let page = buffer_manager.get_page(page_id)?;
-            
+
             // 直接使用迭代器获取所有记录
             for (_, record) in page.iter_records() {
                 records.push(record);

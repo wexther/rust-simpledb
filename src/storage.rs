@@ -285,8 +285,8 @@ mod tests {
 
     fn create_test_storage() -> (StorageEngine, TempDir) {
         let temp_dir = TempDir::new().expect("无法创建临时目录");
-        let storage = StorageEngine::new(Some(temp_dir.path()), Some("test_db"))
-            .expect("无法创建存储引擎");
+        let storage =
+            StorageEngine::new(Some(temp_dir.path()), Some("test_db")).expect("无法创建存储引擎");
         (storage, temp_dir)
     }
 
@@ -319,10 +319,10 @@ mod tests {
     #[test]
     fn test_storage_engine_creation() {
         let (storage, _temp_dir) = create_test_storage();
-        
+
         // 验证默认数据库是否创建
         assert!(storage.has_database("test_db"));
-        
+
         // 验证当前数据库是否设置正确
         assert!(storage.current_database().is_ok());
     }
@@ -358,10 +358,18 @@ mod tests {
         let columns = create_test_columns();
 
         // 测试创建表
-        assert!(storage.create_table("users".to_string(), columns.clone()).is_ok());
+        assert!(
+            storage
+                .create_table("users".to_string(), columns.clone())
+                .is_ok()
+        );
 
         // 测试创建重复表应该失败
-        assert!(storage.create_table("users".to_string(), columns.clone()).is_err());
+        assert!(
+            storage
+                .create_table("users".to_string(), columns.clone())
+                .is_err()
+        );
 
         // 测试获取表
         assert!(storage.get_table("users").is_ok());
@@ -398,11 +406,7 @@ mod tests {
         ];
         let record_id1 = storage.insert_record("users", values1.clone()).unwrap();
 
-        let values2 = vec![
-            Value::Int(2),
-            Value::String("Bob".to_string()),
-            Value::Null,
-        ];
+        let values2 = vec![Value::Int(2), Value::String("Bob".to_string()), Value::Null];
         let record_id2 = storage.insert_record("users", values2.clone()).unwrap();
 
         // 测试获取所有记录
@@ -418,12 +422,22 @@ mod tests {
             ("name".to_string(), Value::String("Alice Smith".to_string())),
             ("age".to_string(), Value::Int(26)),
         ];
-        assert!(storage.update_record("users", record_id1, &update_pairs).is_ok());
+        assert!(
+            storage
+                .update_record("users", record_id1, &update_pairs)
+                .is_ok()
+        );
 
         // 验证更新后的记录
         let updated_records = storage.get_all_records("users").unwrap();
-        if let Some(updated_record) = updated_records.iter().find(|r| r.id().unwrap() == record_id1) {
-            assert_eq!(updated_record.values()[1], Value::String("Alice Smith".to_string()));
+        if let Some(updated_record) = updated_records
+            .iter()
+            .find(|r| r.id().unwrap() == record_id1)
+        {
+            assert_eq!(
+                updated_record.values()[1],
+                Value::String("Alice Smith".to_string())
+            );
             assert_eq!(updated_record.values()[2], Value::Int(26));
         } else {
             panic!("找不到更新的记录");
@@ -448,20 +462,32 @@ mod tests {
         // 第一次运行：创建数据并保存
         {
             let mut storage = StorageEngine::new(Some(&temp_path), Some("persist_test")).unwrap();
-            
+
             // 创建表和数据
-            storage.create_table("users".to_string(), columns.clone()).unwrap();
-            storage.insert_record("users", vec![
-                Value::Int(1),
-                Value::String("Alice".to_string()),
-                Value::Int(25),
-            ]).unwrap();
-            storage.insert_record("users", vec![
-                Value::Int(2),
-                Value::String("Bob".to_string()),
-                Value::Int(30),
-            ]).unwrap();
-            
+            storage
+                .create_table("users".to_string(), columns.clone())
+                .unwrap();
+            storage
+                .insert_record(
+                    "users",
+                    vec![
+                        Value::Int(1),
+                        Value::String("Alice".to_string()),
+                        Value::Int(25),
+                    ],
+                )
+                .unwrap();
+            storage
+                .insert_record(
+                    "users",
+                    vec![
+                        Value::Int(2),
+                        Value::String("Bob".to_string()),
+                        Value::Int(30),
+                    ],
+                )
+                .unwrap();
+
             // 手动保存
             storage.save().unwrap();
         } // storage 在这里被销毁，会自动保存
@@ -469,25 +495,27 @@ mod tests {
         // 第二次运行：加载数据并验证
         {
             let mut storage = StorageEngine::new(Some(&temp_path), Some("persist_test")).unwrap();
-            
+
             // 验证数据库和表是否存在
             assert!(storage.has_database("persist_test"));
             assert!(storage.get_table("users").is_ok());
-            
+
             // 验证数据是否正确加载
             let records = storage.get_all_records("users").unwrap();
             assert_eq!(records.len(), 2);
-            
+
             // 验证具体数据
-            let alice_record = records.iter().find(|r| {
-                r.values()[0] == Value::Int(1)
-            }).expect("找不到 Alice 的记录");
+            let alice_record = records
+                .iter()
+                .find(|r| r.values()[0] == Value::Int(1))
+                .expect("找不到 Alice 的记录");
             assert_eq!(alice_record.values()[1], Value::String("Alice".to_string()));
             assert_eq!(alice_record.values()[2], Value::Int(25));
-            
-            let bob_record = records.iter().find(|r| {
-                r.values()[0] == Value::Int(2)
-            }).expect("找不到 Bob 的记录");
+
+            let bob_record = records
+                .iter()
+                .find(|r| r.values()[0] == Value::Int(2))
+                .expect("找不到 Bob 的记录");
             assert_eq!(bob_record.values()[1], Value::String("Bob".to_string()));
             assert_eq!(bob_record.values()[2], Value::Int(30));
         }
@@ -504,32 +532,50 @@ mod tests {
 
         // 在 db1 中创建表
         storage.use_database("db1").unwrap();
-        storage.create_table("table1".to_string(), columns.clone()).unwrap();
-        storage.insert_record("table1", vec![
-            Value::Int(1),
-            Value::String("DB1 Data".to_string()),
-            Value::Int(100),
-        ]).unwrap();
+        storage
+            .create_table("table1".to_string(), columns.clone())
+            .unwrap();
+        storage
+            .insert_record(
+                "table1",
+                vec![
+                    Value::Int(1),
+                    Value::String("DB1 Data".to_string()),
+                    Value::Int(100),
+                ],
+            )
+            .unwrap();
 
         // 在 db2 中创建表
         storage.use_database("db2").unwrap();
         storage.create_table("table2".to_string(), columns).unwrap();
-        storage.insert_record("table2", vec![
-            Value::Int(2),
-            Value::String("DB2 Data".to_string()),
-            Value::Int(200),
-        ]).unwrap();
+        storage
+            .insert_record(
+                "table2",
+                vec![
+                    Value::Int(2),
+                    Value::String("DB2 Data".to_string()),
+                    Value::Int(200),
+                ],
+            )
+            .unwrap();
 
         // 验证数据隔离
         let db2_records = storage.get_all_records("table2").unwrap();
         assert_eq!(db2_records.len(), 1);
-        assert_eq!(db2_records[0].values()[1], Value::String("DB2 Data".to_string()));
+        assert_eq!(
+            db2_records[0].values()[1],
+            Value::String("DB2 Data".to_string())
+        );
 
         // 切换回 db1 验证数据
         storage.use_database("db1").unwrap();
         let db1_records = storage.get_all_records("table1").unwrap();
         assert_eq!(db1_records.len(), 1);
-        assert_eq!(db1_records[0].values()[1], Value::String("DB1 Data".to_string()));
+        assert_eq!(
+            db1_records[0].values()[1],
+            Value::String("DB1 Data".to_string())
+        );
 
         // 验证在 db1 中无法访问 db2 的表
         assert!(storage.get_table("table2").is_err());
@@ -541,19 +587,39 @@ mod tests {
         let columns = create_test_columns();
 
         // 测试空表操作
-        storage.create_table("empty_table".to_string(), columns.clone()).unwrap();
+        storage
+            .create_table("empty_table".to_string(), columns.clone())
+            .unwrap();
         let empty_records = storage.get_all_records("empty_table").unwrap();
         assert_eq!(empty_records.len(), 0);
 
         // 测试对不存在的表进行操作
-        assert!(storage.insert_record("non_existent", vec![Value::Int(1)]).is_err());
+        assert!(
+            storage
+                .insert_record("non_existent", vec![Value::Int(1)])
+                .is_err()
+        );
         assert!(storage.get_all_records("non_existent").is_err());
-        assert!(storage.update_record("non_existent", RecordId::new(1, 0/* 我们不关心这个值 */), &vec![]).is_err());
-        assert!(storage.delete_record("non_existent", RecordId::new(1, 0/* 我们不关心这个值 */)).is_err());
+        assert!(
+            storage
+                .update_record(
+                    "non_existent",
+                    RecordId::new(1, 0 /* 我们不关心这个值 */),
+                    &vec![]
+                )
+                .is_err()
+        );
+        assert!(
+            storage
+                .delete_record("non_existent", RecordId::new(1, 0 /* 我们不关心这个值 */))
+                .is_err()
+        );
 
         // 测试插入类型不匹配的数据
-        storage.create_table("test_table".to_string(), columns).unwrap();
-        
+        storage
+            .create_table("test_table".to_string(), columns)
+            .unwrap();
+
         // 插入错误数量的值（应该通过，但可能在更严格的验证中失败）
         let wrong_values = vec![Value::Int(1)]; // 只有1个值，但表有3列
         // 注意：这取决于你的实现是否在存储层验证列数
@@ -566,13 +632,17 @@ mod tests {
 
         // 测试在未选择数据库时的操作
         storage.drop_database("test_db").unwrap(); // 删除默认数据库
-        
+
         // 现在应该没有当前数据库了
         // 注意：这取决于你的实现细节，可能需要调整
-        
+
         // 测试各种错误情况
         assert!(storage.get_table("any_table").is_err());
-        assert!(storage.create_table("any_table".to_string(), vec![]).is_err());
+        assert!(
+            storage
+                .create_table("any_table".to_string(), vec![])
+                .is_err()
+        );
     }
 
     #[test]
@@ -582,15 +652,22 @@ mod tests {
         let (mut storage, _temp_dir) = create_test_storage();
         let columns = create_test_columns();
 
-        storage.create_table("concurrent_table".to_string(), columns).unwrap();
+        storage
+            .create_table("concurrent_table".to_string(), columns)
+            .unwrap();
 
         // 快速连续插入多条记录
         for i in 0..10 {
-            storage.insert_record("concurrent_table", vec![
-                Value::Int(i),
-                Value::String(format!("User{}", i)),
-                Value::Int(20 + i),
-            ]).unwrap();
+            storage
+                .insert_record(
+                    "concurrent_table",
+                    vec![
+                        Value::Int(i),
+                        Value::String(format!("User{}", i)),
+                        Value::Int(20 + i),
+                    ],
+                )
+                .unwrap();
         }
 
         let records = storage.get_all_records("concurrent_table").unwrap();
