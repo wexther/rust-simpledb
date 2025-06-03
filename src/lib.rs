@@ -6,7 +6,7 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 
-pub mod completion;
+pub mod helper;
 pub mod error;
 pub mod executor;
 pub mod planner;
@@ -182,7 +182,7 @@ impl SimpleDB {
     }
 
     fn run_interactive_mode(&mut self) -> Result<()> {
-        use crate::completion::SQLHelper;
+        use crate::helper::SQLHelper;
         use rustyline::error::ReadlineError;
         use rustyline::{ColorMode, Config, Editor};
 
