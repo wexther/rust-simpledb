@@ -265,6 +265,12 @@ impl StorageEngine {
         let database = self.current_database_mut()?;
         database.get_all_records(table_name)
     }
+
+    /// 获取当前数据库中所有表的名称
+    pub fn get_table_names(&self) -> Result<Vec<String>> {
+        let database = self.current_database()?;
+        Ok(database.get_table_names())
+    }
 }
 
 // 实现 Drop trait 以在存储引擎被销毁时自动保存数据

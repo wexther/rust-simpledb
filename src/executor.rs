@@ -16,44 +16,71 @@ pub struct ResultSet {
 
 impl fmt::Display for ResultSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // 表头
-        write!(f, "| ")?;
-        for (i, col) in self.columns.iter().enumerate() {
-            write!(f, "{}", col)?;
-            if i < self.columns.len() - 1 {
-                write!(f, " | ")?;
-            }
+        if self.columns.is_empty() {
+            return Ok(());
         }
-        writeln!(f, " |")?;
 
-        // 分隔线
-        write!(f, "| ")?;
-        for (i, col) in self.columns.iter().enumerate() {
-            write!(f, "{}", "-".repeat(col.len()))?;
-            if i < self.columns.len() - 1 {
-                write!(f, " | ")?;
-            }
-        }
-        writeln!(f, " |")?;
-
-        // 数据行
-        for row in &self.rows {
-            write!(f, "| ")?;
-            for (i, cell) in row.iter().enumerate() {
-                // 将 Value 转换为字符串显示
-                let cell_str = match cell {
-                    Value::Int(n) => n.to_string(),
-                    Value::Float(f) => f.to_string(),
-                    Value::String(s) => s.clone(),
-                    Value::Boolean(b) => b.to_string(),
-                    Value::Null => "NULL".to_string(),
-                };
-                write!(f, "{}", cell_str)?;
-                if i < row.len() - 1 {
-                    write!(f, " | ")?;
+        // 计算每列的最大宽度
+        let mut column_widths = Vec::new();
+        
+        for (col_idx, column_name) in self.columns.iter().enumerate() {
+            let mut max_width = column_name.len();
+            
+            // 检查该列中所有数据的宽度
+            for row in &self.rows {
+                if col_idx < row.len() {
+                    let cell_str = match &row[col_idx] {
+                        Value::Int(n) => n.to_string(),
+                        Value::Float(f) => f.to_string(),
+                        Value::String(s) => s.clone(),
+                        Value::Boolean(b) => b.to_string(),
+                        Value::Null => "NULL".to_string(),
+                    };
+                    max_width = max_width.max(cell_str.len());
                 }
             }
-            writeln!(f, " |")?;
+            
+            // 每个单元格左右边界相距至少5个空格，最长字段小于3时也要保证至少3个字符
+            let min_content_width = 3;
+            let actual_content_width = max_width.max(min_content_width);
+            // 左右各1个空格 + 内容宽度，但总宽度至少5
+            let total_width = (actual_content_width + 2).max(5);
+            column_widths.push(total_width);
+        }
+
+        // 打印表头
+        write!(f, "|")?;
+        for (i, (column_name, &width)) in self.columns.iter().zip(&column_widths).enumerate() {
+            write!(f, " {:<width$} |", column_name, width = width - 2)?;
+        }
+        writeln!(f)?;
+
+        // 打印分隔线
+        write!(f, "|")?;
+        for &width in &column_widths {
+            write!(f, "{}", "-".repeat(width))?;
+            write!(f, "|")?;
+        }
+        writeln!(f)?;
+
+        // 打印数据行
+        for row in &self.rows {
+            write!(f, "|")?;
+            for (col_idx, &width) in column_widths.iter().enumerate() {
+                let cell_str = if col_idx < row.len() {
+                    match &row[col_idx] {
+                        Value::Int(n) => n.to_string(),
+                        Value::Float(f) => f.to_string(),
+                        Value::String(s) => s.clone(),
+                        Value::Boolean(b) => b.to_string(),
+                        Value::Null => "NULL".to_string(),
+                    }
+                } else {
+                    "".to_string()
+                };
+                write!(f, " {:<width$} |", cell_str, width = width - 2)?;
+            }
+            writeln!(f)?;
         }
 
         Ok(())
@@ -228,7 +255,23 @@ impl<'a> Executor<'a> {
                 Err(e) => Err(DBError::Schema(e.to_string())),
             },
             Plan::ShowDatabases => todo!(),
-            Plan::ShowTables => todo!(),
+            Plan::ShowTables => {
+                // 获取当前数据库中所有表名
+                let table_names = self.storage.get_table_names()?;
+                
+                // 创建结果集
+                let mut result_rows = Vec::new();
+                for table_name in table_names {
+                    result_rows.push(vec![Value::String(table_name)]);
+                }
+                
+                let result_set = ResultSet {
+                    columns: vec!["Tables".to_string()],
+                    rows: result_rows,
+                };
+                
+                Ok(QueryResult::ResultSet(result_set))
+            },
         }
     }
 

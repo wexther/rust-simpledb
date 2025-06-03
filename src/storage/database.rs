@@ -180,4 +180,9 @@ impl Database {
         // 调用表的 get_all_records 方法获取所有记录
         table.get_all_records(buffer_manager)
     }
+
+    /// 获取数据库中所有表的名称
+    pub fn get_table_names(&self) -> Vec<String> {
+        self.catalog.get_table_names()
+    }
 }
