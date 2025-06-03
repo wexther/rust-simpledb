@@ -202,7 +202,7 @@ impl SimpleDB {
         rl.set_helper(Some(helper));
 
         // 尝试加载历史记录
-        let history_file = "simple_db_history.txt";
+        let history_file = "data/simple_db_history.txt";
         if rl.load_history(history_file).is_err() {
             if self.config.verbose {
                 println!("未找到历史记录文件，将创建新文件");
