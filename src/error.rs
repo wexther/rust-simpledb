@@ -50,7 +50,6 @@ impl From<io::Error> for DBError {
     }
 }
 
-// 添加 ReadlineError 的转换
 impl From<rustyline::error::ReadlineError> for DBError {
     fn from(err: rustyline::error::ReadlineError) -> Self {
         DBError::Readline(err.to_string())

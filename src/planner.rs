@@ -2,7 +2,7 @@ use crate::error::{DBError, Result};
 use crate::storage::table::{ColumnDef, DataType, Record, Value};
 use sqlparser::ast;
 
-/// 表达式枚举（从 analyzer.rs 移过来）
+/// 表达式枚举
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Column(String),
@@ -18,7 +18,7 @@ pub enum Expression {
     },
 }
 
-/// 二元操作符（从 analyzer.rs 移过来）
+/// 二元操作符
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOperator {
     Add,
@@ -38,7 +38,7 @@ pub enum BinaryOperator {
     Or,
 }
 
-/// 一元操作符（从 analyzer.rs 移过来）
+/// 一元操作符
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOperator {
     Not,
@@ -46,7 +46,7 @@ pub enum UnaryOperator {
     Plus,
 }
 
-/// 条件枚举（从 analyzer.rs 移过来）
+/// 条件枚举
 #[derive(Clone, Debug, PartialEq)]
 pub enum Condition {
     Expression(Expression),
