@@ -58,7 +58,9 @@ impl fmt::Display for ResultSet {
         // 打印分隔线
         write!(f, "|")?;
         for &width in &column_widths {
-            write!(f, "{}", "-".repeat(width))?;
+            write!(f, " ")?;
+            write!(f, "{}", "-".repeat(width-2))?;
+            write!(f, " ")?;
             write!(f, "|")?;
         }
         writeln!(f)?;

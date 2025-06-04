@@ -9,7 +9,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/simple_db",
-            "args": ["CREATE DATABASE test"],
+            "args": ["examples/1/input.txt"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "rust: cargo build"
         },

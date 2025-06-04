@@ -158,7 +158,7 @@ impl SimpleDB {
 
         for result in &results {
             match result {
-                Ok(res) => println!("{}", res),
+                Ok(res) => print!("{}", res),
                 Err(e) => eprintln!("执行错误: {}", e),
             }
         }
