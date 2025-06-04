@@ -186,13 +186,65 @@ impl<'a> Executor<'a> {
                 set_pairs,
                 conditions,
             } => {
-                todo!() // 更新操作的实现
+                //todo!() // 更新操作的实现
+                // 获取表的列定义
+                let table_columns = self.storage.get_table_columns(table_name)?;
+
+                // 获取所有记录
+                let mut records = self.storage.get_all_records(table_name)?;
+
+                // 应用WHERE条件过滤，找出需要更新的记录
+                let to_update: Vec<_> = if let Some(condition) = conditions {
+                    records
+                        .into_iter()
+                        .filter(|record| condition.evaluate(record, &table_columns).unwrap_or(false))
+                        .collect()
+                } else {
+                    records
+                };
+
+                // 执行更新
+                for record in &to_update {
+                    if let Some(record_id) = record.id() {
+                        self.storage.update_record(table_name, record_id, set_pairs)?;
+                    } else {
+                        return Err(DBError::Execution("记录缺少ID，无法更新".to_string()));
+                    }
+                }
+
+                Ok(QueryResult::Success)
             }
             Plan::Delete {
                 table_name,
                 conditions,
             } => {
-                todo!() // 删除操作的实现
+                //todo!() // 删除操作的实现
+                // 获取表的列定义
+                let table_columns = self.storage.get_table_columns(table_name)?;
+
+                // 获取所有记录
+                let mut records = self.storage.get_all_records(table_name)?;
+
+                // 应用WHERE条件过滤，找出需要删除的记录
+                let to_delete: Vec<_> = if let Some(condition) = conditions {
+                    records
+                        .into_iter()
+                        .filter(|record| condition.evaluate(record, &table_columns).unwrap_or(false))
+                        .collect()
+                } else {
+                    records
+                };
+
+                // 执行删除
+                for record in &to_delete {
+                    if let Some(record_id) = record.id() {
+                        self.storage.delete_record(table_name, record_id)?;
+                    } else {
+                        return Err(DBError::Execution("记录缺少ID，无法删除".to_string()));
+                    }
+                }
+
+                Ok(QueryResult::Success)
             }
             Plan::Select {
                 table_name,

@@ -202,11 +202,35 @@ impl Planner {
             }
 
             ast::Statement::Delete(delete) => {
-                if delete.tables.len() != 1 {
+                //have bug “仅支持单表删除”
+                if delete.tables.len() > 1 {
                     return Err(DBError::Parse("仅支持单表删除".to_string()));
                 }
+                //have bug delete.tables为空
+                //let table_name = delete.tables[0].to_string();
+                // 兼容不同SQL解析器的Delete结构
+                let table_name: String = if !delete.tables.is_empty() {
+                    delete.tables[0].to_string()
+                } else if let from = &delete.from {
+                    let from_str = from.to_string();
+                    //此时from的格式为“FROM table_name”，需要从中截取出table_name
+                    let parts: Vec<&str> = from_str.trim().split_whitespace().collect();
+                    if parts.len() == 2 && parts[0].eq_ignore_ascii_case("from") {
+                        parts[1].to_string()
+                    } else {
+                        from_str
+                    }
+                } else {
+                    return Err(DBError::Parse("DELETE 语句缺少表名".to_string()));
+                };
 
-                let table_name = delete.tables[0].to_string();
+                // 输出表的名字
+                /*
+                return Err(DBError::Parse(
+                    format!("DELETE 语句的表名: {}", table_name),
+                ));
+                */
+
                 let conditions = if let Some(expr) = &delete.selection {
                     Some(self.analyze_condition(expr)?)
                 } else {
