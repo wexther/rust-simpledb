@@ -356,6 +356,30 @@ impl<'a> Executor<'a> {
 
                 Ok(QueryResult::ResultSet(result_set))
             }
+            Plan::DescribeTable { name } => {
+                // 获取表的列定义
+                let table_columns = self.storage.get_table_columns(name)?;
+
+                // 创建结果集
+                let mut result_rows = Vec::new();
+                for column in &table_columns {
+                    let row = vec![
+                        Value::String(column.name.clone()),
+                        Value::String(column.data_type.to_string()),
+                        Value::Boolean(column.not_null),
+                        Value::Boolean(column.is_primary),
+                        Value::Boolean(column.unique),
+                    ];
+                    result_rows.push(row);
+                }
+
+                let result_set = ResultSet {
+                    columns: vec!["Column".to_string(), "Type".to_string(), "Not Null".to_string(), "Is Primary".to_string(), "Unique".to_string()],
+                    rows: result_rows,
+                };
+
+                Ok(QueryResult::ResultSet(result_set))
+            }
         }
     }
 

@@ -193,3 +193,12 @@ pub enum DataType {
     Int(u64),
     Varchar(u64),
 }
+
+impl std::fmt::Display for DataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataType::Int(size) => write!(f, "INT({})", size),
+            DataType::Varchar(size) => write!(f, "VARCHAR({})", size),
+        }
+    }
+}

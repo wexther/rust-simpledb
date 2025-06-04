@@ -129,6 +129,9 @@ pub enum Plan {
     },
     ShowDatabases,
     ShowTables,
+    DescribeTable {
+        name: String,
+    },
 }
 
 /// 统一的查询计划生成器
@@ -270,6 +273,10 @@ impl Planner {
                     use_stmt
                 ))),
             },
+
+            ast::Statement::ExplainTable { table_name,.. } => Ok(Plan::DescribeTable {
+                name: table_name.to_string(),
+            }),
 
             _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
         }
