@@ -1,5 +1,3 @@
-use super::super::io::buffer_manager::BufferManager;
-use super::super::io::page::{Page, PageId};
 use crate::error::{DBError, Result};
 use bincode::{Decode, Encode};
 

@@ -151,6 +151,11 @@ impl<'a> Executor<'a> {
 
                     // 按表定义顺序插入所有列
                     for row in rows {
+                        // 验证每个值的类型是否与列定义匹配
+                        for (col_index, value) in row.iter().enumerate() {
+                            let column_def = &table_columns[col_index];
+                            self.validate_value_type(value, &column_def.data_type)?;
+                        }
                         self.storage.insert_record(table_name, row.clone())?;
                     }
                 } else {
@@ -163,6 +168,8 @@ impl<'a> Executor<'a> {
                             if let Some(column_index) =
                                 columns.iter().position(|col| col == &table_col.name)
                             {
+                                // 验证值类型是否与列定义匹配
+                                self.validate_value_type(&row[column_index], &table_col.data_type)?;
                                 // 使用提供的值
                                 full_row.push(row[column_index].clone());
                             } else {
@@ -193,7 +200,7 @@ impl<'a> Executor<'a> {
                 let table_columns = self.storage.get_table_columns(table_name)?;
 
                 // 获取所有记录
-                let mut records = self.storage.get_all_records(table_name)?;
+                let records = self.storage.get_all_records(table_name)?;
 
                 // 应用WHERE条件过滤，找出需要更新的记录
                 let to_update: Vec<_> = if let Some(condition) = conditions {
@@ -225,7 +232,7 @@ impl<'a> Executor<'a> {
                 let table_columns = self.storage.get_table_columns(table_name)?;
 
                 // 获取所有记录
-                let mut records = self.storage.get_all_records(table_name)?;
+                let records = self.storage.get_all_records(table_name)?;
 
                 // 应用WHERE条件过滤，找出需要删除的记录
                 let to_delete: Vec<_> = if let Some(condition) = conditions {
@@ -259,7 +266,9 @@ impl<'a> Executor<'a> {
                     return self.execute_expression_select(columns);
                 }
 
-                let table_name = table_name.as_ref().unwrap();
+                let table_name = table_name.as_ref().ok_or(DBError::Execution(
+                    "SELECT 查询必须指定表名".to_string(),
+                ))?;
 
                 // 获取表的列定义
                 let table_columns = self.storage.get_table_columns(table_name)?;
@@ -327,18 +336,6 @@ impl<'a> Executor<'a> {
                 Ok(QueryResult::ResultSet(result_set))
             },
         }
-    }
-
-    fn get_default_value(&self, column_def: &ColumnDef) -> Result<Value> {
-        if column_def.not_null {
-            return Err(DBError::Schema(format!(
-                "列 '{}' 不允许为空且没有提供值",
-                column_def.name
-            )));
-        }
-
-        // 返回 NULL 值作为默认值
-        Ok(Value::Null)
     }
 
     /// 验证值类型是否与列定义匹配

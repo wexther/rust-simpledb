@@ -5,7 +5,7 @@ pub mod page;
 use crate::error::{DBError, Result};
 use crate::storage::catalog::Catalog;
 use buffer_manager::BufferManager;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 

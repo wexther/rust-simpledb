@@ -1,5 +1,5 @@
 use crate::error::{DBError, Result};
-use crate::storage::table::{ColumnDef, DataType, Record, Table, Value};
+use crate::storage::table::{ColumnDef, DataType, Record, Value};
 use sqlparser::ast;
 
 /// 表达式枚举（从 analyzer.rs 移过来）
@@ -211,7 +211,8 @@ impl Planner {
                 // 兼容不同SQL解析器的Delete结构
                 let table_name: String = if !delete.tables.is_empty() {
                     delete.tables[0].to_string()
-                } else if let from = &delete.from {
+                } else {
+                    let from = &delete.from;
                     let from_str = from.to_string();
                     //此时from的格式为“FROM table_name”，需要从中截取出table_name
                     let parts: Vec<&str> = from_str.trim().split_whitespace().collect();
@@ -220,8 +221,6 @@ impl Planner {
                     } else {
                         from_str
                     }
-                } else {
-                    return Err(DBError::Parse("DELETE 语句缺少表名".to_string()));
                 };
 
                 // 输出表的名字
@@ -866,6 +865,8 @@ mod tests {
                     assert_eq!(*value, Value::Int(1300));
                 }
             }
+            assert!(conditions.is_none());
+            assert!(order_by.is_none());
         } else {
             panic!("预期生成Select查询计划");
         }
@@ -907,6 +908,9 @@ mod tests {
                     assert_eq!(*value, Value::String("constant".to_string()));
                 }
             }
+
+            assert!(conditions.is_none());
+            assert!(order_by.is_none());
         } else {
             panic!("预期生成Select查询计划");
         }
@@ -1475,6 +1479,9 @@ mod tests {
             } else {
                 panic!("预期具体列选择");
             }
+
+            assert!(conditions.is_none());
+            assert!(order_by.is_none());
         } else {
             panic!("预期生成Select查询计划");
         }

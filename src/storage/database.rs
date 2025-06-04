@@ -1,9 +1,9 @@
 use super::catalog::Catalog;
 use super::io::PersistenceManager;
-use super::table::{ColumnDef, Record, RecordId, Table};
+use super::table::{Record, RecordId, Table};
 use crate::error::{DBError, Result};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 /// 单个数据库的结构
 pub struct Database {

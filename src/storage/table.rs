@@ -1,7 +1,6 @@
 use super::io::buffer_manager::BufferManager;
-use super::io::page::{Page, PageId};
+use super::io::page::{PageId};
 use crate::error::{DBError, Result};
-use bincode::{Decode, Encode};
 
 pub mod record;
 pub mod value;
@@ -36,6 +35,10 @@ impl Table {
         }
     }
 
+    pub fn get_primary_key_index(&self) -> Option<usize> {
+        self.primary_key_index
+    }
+
     /// 获取表名
     pub fn name(&self) -> &str {
         &self.name
@@ -63,7 +66,7 @@ impl Table {
 
         // 尝试在现有页面中插入
         for &page_id in &self.page_ids {
-            let mut page = buffer_manager.get_page_mut(page_id)?;
+            let page = buffer_manager.get_page_mut(page_id)?;
 
             // 尝试插入记录 - 直接返回 RecordId
             match page.insert_record(values.clone()) {
@@ -77,7 +80,7 @@ impl Table {
         self.page_ids.push(new_page_id);
 
         // 在新页面中插入记录
-        let mut page = buffer_manager.get_page_mut(new_page_id)?;
+        let page = buffer_manager.get_page_mut(new_page_id)?;
         page.insert_record(values)
     }
 
@@ -94,7 +97,7 @@ impl Table {
             )));
         }
 
-        let mut page = buffer_manager.get_page_mut(id.page_id)?;
+        let page = buffer_manager.get_page_mut(id.page_id)?;
         page.delete_record(id) // 直接传递 RecordId
     }
 
@@ -125,7 +128,7 @@ impl Table {
             )));
         }
 
-        let mut page = buffer_manager.get_page_mut(id.page_id)?;
+        let  page = buffer_manager.get_page_mut(id.page_id)?;
 
         // 获取原记录
         let original_record = page.get_record(id)?;
@@ -171,6 +174,7 @@ impl Table {
         buffer_manager: &mut BufferManager,
         page_ids: Vec<PageId>,
     ) -> Result<()> {
+        let _ = buffer_manager; // 可能需要在加载时使用 BufferManager
         self.page_ids = page_ids;
         Ok(())
     }

@@ -1,6 +1,5 @@
-use super::super::io::page::{Page, PageId};
-use super::super::table::{ColumnDef, Value};
-use crate::error::{DBError, Result};
+use super::super::io::page::{PageId};
+use super::super::table::{Value};
 use bincode::{Decode, Encode};
 
 /// 记录ID

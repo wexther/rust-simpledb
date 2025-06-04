@@ -1,13 +1,12 @@
 pub mod catalog;
 mod database;
-mod io;
+pub mod io;
 
 pub mod table;
 // pub mod record;
 pub mod transaction;
 
 use crate::error::{DBError, Result};
-use catalog::Catalog;
 use database::Database;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -286,7 +285,6 @@ impl Drop for StorageEngine {
 mod tests {
     use super::*;
     use crate::storage::table::{ColumnDef, DataType, Value};
-    use std::fs;
     use tempfile::TempDir;
 
     fn create_test_storage() -> (StorageEngine, TempDir) {
@@ -621,15 +619,15 @@ mod tests {
                 .is_err()
         );
 
-        // 测试插入类型不匹配的数据
-        storage
-            .create_table("test_table".to_string(), columns)
-            .unwrap();
+        // // 测试插入类型不匹配的数据
+        // storage
+        //     .create_table("test_table".to_string(), columns)
+        //     .unwrap();
 
-        // 插入错误数量的值（应该通过，但可能在更严格的验证中失败）
-        let wrong_values = vec![Value::Int(1)]; // 只有1个值，但表有3列
-        // 注意：这取决于你的实现是否在存储层验证列数
-        // 如果不验证，这个测试可能需要调整
+        // // 插入错误数量的值（应该通过，但可能在更严格的验证中失败）
+        // let wrong_values = vec![Value::Int(1)]; // 只有1个值，但表有3列
+        // // 注意：这取决于你的实现是否在存储层验证列数
+        // // 如果不验证，这个测试可能需要调整
     }
 
     #[test]
