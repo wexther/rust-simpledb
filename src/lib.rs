@@ -316,6 +316,15 @@ impl SimpleDB {
                 println!("  详细模式: {}", self.config.verbose);
             }
 
+            ".v"|".verbose" => {
+                self.config.verbose = !self.config.verbose;
+                if self.config.verbose {
+                    println!("详细模式已启用");
+                } else {
+                    println!("详细模式已禁用");
+                }
+            }
+
             cmd if cmd.starts_with(".schema") => {
                 let parts: Vec<&str> = cmd.split_whitespace().collect();
                 if parts.len() == 2 {
@@ -369,6 +378,7 @@ impl SimpleDB {
         println!("  .version                      # 显示版本信息");
         println!("  .status                       # 显示数据库状态");
         println!("  .read <file_path>             # 执行SQL文件");
+        println!("  .v, .verbose                  # 切换详细模式");
         println!();
 
         println!("增强功能 (rustyline):");
