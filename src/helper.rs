@@ -50,11 +50,32 @@ impl SQLHelper {
             }
         }
 
-        // 高亮字符串为绿色
-        result = result.replace("'", "\x1b[32m'\x1b[0m"); // 简化版本
+        // 高亮字符串为绿色（完整字符串）
+        if let Ok(re) = regex::Regex::new(r"'([^'\\]|\\.)*'") {
+            result = re
+                .replace_all(&result, |caps: &regex::Captures| {
+                    format!("\x1b[32m{}\x1b[0m", &caps[0]) // 绿色
+                })
+                .to_string();
+        }
 
-        // 高亮数字为黄色
-        // ... 更多高亮规则
+        // 高亮双引号字符串
+        if let Ok(re) = regex::Regex::new(r#""([^"\\]|\\.)*""#) {
+            result = re
+                .replace_all(&result, |caps: &regex::Captures| {
+                    format!("\x1b[32m{}\x1b[0m", &caps[0]) // 绿色
+                })
+                .to_string();
+        }
+
+        // 高亮数字为黄色（整数和浮点数）
+        if let Ok(re) = regex::Regex::new(r"\b\d+(\.\d+)?\b") {
+            result = re
+                .replace_all(&result, |caps: &regex::Captures| {
+                    format!("\x1b[33m{}\x1b[0m", &caps[0]) // 黄色
+                })
+                .to_string();
+        }
 
         result
     }
