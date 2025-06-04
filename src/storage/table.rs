@@ -64,6 +64,37 @@ impl Table {
             )));
         }
 
+        // 验证 NULL 约束
+        for (value, column) in values.iter().zip(&self.columns) {
+            if value == &Value::Null && column.not_null {
+                return Err(DBError::Schema(format!(
+                    "列 '{}' 不允许为 NULL",
+                    column.name
+                )));
+            }
+        }
+
+        // 验证 UNIQUE 约束
+        for (i, (value, column)) in values.iter().zip(&self.columns).enumerate() {
+            if column.unique && value != &Value::Null {
+                // 检查所有现有记录是否有重复值
+                for &page_id in &self.page_ids {
+                    let page = buffer_manager.get_page(page_id)?;
+                    
+                    // 遍历页面中的所有记录
+                    for (_, record) in page.iter_records() {
+                        let record_values = record.values();
+                        if i < record_values.len() && &record_values[i] == value {
+                            return Err(DBError::Schema(format!(
+                                "列 '{}' 的值 '{}' 违反了 UNIQUE 约束",
+                                column.name, value
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
         // 尝试在现有页面中插入
         for &page_id in &self.page_ids {
             let page = buffer_manager.get_page_mut(page_id)?;
