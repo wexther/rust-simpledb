@@ -135,9 +135,6 @@ impl SimpleDB {
     }
 
     pub fn save(&mut self) -> Result<()> {
-        if self.config.verbose {
-            println!("正在保存数据库...");
-        }
         self.storage_engine.save()
     }
 
@@ -209,7 +206,7 @@ impl SimpleDB {
             }
         }
 
-        println!("Simple DB 交互模式 (增强版)");
+        println!("Simple DB 交互模式");
         println!("功能:");
         println!("  • 使用上下箭头键浏览命令历史");
         println!("  • 使用 Tab 键自动补全 SQL 关键字和元命令");
@@ -233,13 +230,14 @@ impl SimpleDB {
                     // 添加到历史记录
                     rl.add_history_entry(trimmed)?;
 
-                    // 处理元命令
-                    if self.handle_meta_command(trimmed)? {
-                        break;
-                    }
-
+                    if trimmed.starts_with('.') {
+                        // 处理元命令
+                        if self.handle_meta_command(trimmed)? {
+                            break;
+                        }
+                    } else
                     // 执行 SQL 命令
-                    if !trimmed.starts_with('.') {
+                    {
                         match self.execute_single_sql(trimmed) {
                             Ok(result) => print!("{}", result),
                             Err(e) => eprintln!("错误: {}", e),
@@ -309,16 +307,12 @@ impl SimpleDB {
 
             ".status" => {
                 println!("数据库状态:");
-                if let Some(db_name) = &self.config.db_name {
-                    println!("  当前数据库: {}", db_name);
-                } else {
-                    println!("  当前数据库: 默认");
-                }
-                if let Some(data_dir) = &self.config.base_dir {
-                    println!("  数据目录: {}", data_dir);
-                } else {
-                    println!("  数据目录: 默认");
-                }
+                let db_name = self.storage_engine.current_database()?.get_name();
+                println!("  当前数据库: {}", db_name);
+
+                let data_dir = &self.storage_engine.get_base_dir();
+                println!("  数据目录: {:?}", data_dir);
+
                 println!("  详细模式: {}", self.config.verbose);
             }
 
@@ -344,8 +338,8 @@ impl SimpleDB {
                         Ok(results) => {
                             for result in &results {
                                 match result {
-                                    Ok(res) => println!("{}", res),
-                                    Err(e) => eprintln!("执行错误: {}", e),
+                                    Ok(res) => print!("{}", res),
+                                    Err(e) => eprint!("执行错误: {}", e),
                                 }
                             }
                         }
@@ -356,7 +350,9 @@ impl SimpleDB {
                 }
             }
 
-            _ => {}
+            _ => {
+                self.print_interactive_help();
+            }
         }
 
         Ok(false)

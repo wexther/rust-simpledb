@@ -59,6 +59,10 @@ impl StorageEngine {
         self.base_dir.join(db_name)
     }
 
+    pub fn get_base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
     /// 加载所有数据库
     fn load(&mut self) -> Result<()> {
         if !self.base_dir.exists() {

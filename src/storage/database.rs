@@ -185,4 +185,8 @@ impl Database {
     pub fn get_table_names(&self) -> Vec<String> {
         self.catalog.get_table_names()
     }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
 }
