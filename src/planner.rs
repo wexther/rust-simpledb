@@ -258,6 +258,19 @@ impl Planner {
                 name: db_name.to_string(),
             }),
 
+            ast::Statement::Use(use_stmt) => match use_stmt {
+                ast::Use::Database(name) => Ok(Plan::UseDatabase {
+                    name: name.to_string(),
+                }),
+                ast::Use::Object(objectname) => Ok(Plan::UseDatabase {
+                    name: objectname.to_string(),
+                }),
+                _ => Err(DBError::Parse(format!(
+                    "仅支持USE DATABASE语句{:?}",
+                    use_stmt
+                ))),
+            },
+
             _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
         }
     }

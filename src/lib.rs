@@ -244,7 +244,6 @@ impl SimpleDB {
                             Ok(result) => print!("{}", result),
                             Err(e) => eprintln!("错误: {}", e),
                         }
-                        println!();
                     }
                 }
                 Err(ReadlineError::Interrupted) => {
