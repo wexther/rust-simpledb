@@ -325,20 +325,20 @@ impl<'a> Executor<'a> {
             Plan::ShowDatabases => {
                 // 获取所有数据库名称
                 let database_names = self.storage.get_database_names();
-                
+
                 // 创建结果集
                 let mut result_rows = Vec::new();
                 for database_name in database_names {
                     result_rows.push(vec![Value::String(database_name)]);
                 }
-                
+
                 let result_set = ResultSet {
                     columns: vec!["Database".to_string()],
                     rows: result_rows,
                 };
-                
+
                 Ok(QueryResult::ResultSet(result_set))
-            },
+            }
             Plan::ShowTables => {
                 // 获取当前数据库中所有表名
                 let table_names = self.storage.get_table_names()?;
