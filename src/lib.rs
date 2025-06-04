@@ -1,4 +1,4 @@
-use clap::{Parser};
+use clap::Parser;
 use executor::QueryResult;
 use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser as SqlParser;
@@ -6,13 +6,13 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
-pub mod helper;
 pub mod error;
 pub mod executor;
+pub mod helper;
 pub mod planner;
 pub mod storage;
 
-use error::{Result};
+use error::Result;
 use storage::StorageEngine;
 
 /// Simple DB - 一个简单的数据库引擎

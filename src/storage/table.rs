@@ -1,5 +1,5 @@
 use super::io::buffer_manager::BufferManager;
-use super::io::page::{PageId};
+use super::io::page::PageId;
 use crate::error::{DBError, Result};
 
 pub mod record;
@@ -128,7 +128,7 @@ impl Table {
             )));
         }
 
-        let  page = buffer_manager.get_page_mut(id.page_id)?;
+        let page = buffer_manager.get_page_mut(id.page_id)?;
 
         // 获取原记录
         let original_record = page.get_record(id)?;

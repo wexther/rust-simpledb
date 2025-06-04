@@ -2,7 +2,7 @@ use super::disk_manager::DiskManager;
 use super::page::{Page, PageId};
 use crate::error::{DBError, Result};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path};
+use std::path::Path;
 
 /// 缓冲池大小（可以根据需要调整）
 const BUFFER_POOL_SIZE: usize = 1024;

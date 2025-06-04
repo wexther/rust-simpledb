@@ -1,5 +1,5 @@
-use super::super::io::page::{PageId};
-use super::super::table::{Value};
+use super::super::io::page::PageId;
+use super::super::table::Value;
 use bincode::{Decode, Encode};
 
 /// 记录ID

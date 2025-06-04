@@ -22,10 +22,10 @@ impl fmt::Display for ResultSet {
 
         // 计算每列的最大宽度
         let mut column_widths = Vec::new();
-        
+
         for (col_idx, column_name) in self.columns.iter().enumerate() {
             let mut max_width = column_name.len();
-            
+
             // 检查该列中所有数据的宽度
             for row in &self.rows {
                 if col_idx < row.len() {
@@ -39,7 +39,7 @@ impl fmt::Display for ResultSet {
                     max_width = max_width.max(cell_str.len());
                 }
             }
-            
+
             // 每个单元格左右边界相距至少5个空格，最长字段小于3时也要保证至少3个字符
             let min_content_width = 3;
             let actual_content_width = max_width.max(min_content_width);
@@ -59,7 +59,7 @@ impl fmt::Display for ResultSet {
         write!(f, "|")?;
         for &width in &column_widths {
             write!(f, " ")?;
-            write!(f, "{}", "-".repeat(width-2))?;
+            write!(f, "{}", "-".repeat(width - 2))?;
             write!(f, " ")?;
             write!(f, "|")?;
         }
@@ -160,7 +160,7 @@ impl<'a> Executor<'a> {
                     }
                 } else {
                     // 有列名插入：需要重新排列值的顺序以匹配表的列顺序
-                    for  row in rows.iter() {
+                    for row in rows.iter() {
                         // 创建完整的行数据，未指定的列使用默认值
                         let mut full_row = Vec::with_capacity(table_columns.len());
 
@@ -206,7 +206,9 @@ impl<'a> Executor<'a> {
                 let to_update: Vec<_> = if let Some(condition) = conditions {
                     records
                         .into_iter()
-                        .filter(|record| condition.evaluate(record, &table_columns).unwrap_or(false))
+                        .filter(|record| {
+                            condition.evaluate(record, &table_columns).unwrap_or(false)
+                        })
                         .collect()
                 } else {
                     records
@@ -215,7 +217,8 @@ impl<'a> Executor<'a> {
                 // 执行更新
                 for record in &to_update {
                     if let Some(record_id) = record.id() {
-                        self.storage.update_record(table_name, record_id, set_pairs)?;
+                        self.storage
+                            .update_record(table_name, record_id, set_pairs)?;
                     } else {
                         return Err(DBError::Execution("记录缺少ID，无法更新".to_string()));
                     }
@@ -238,7 +241,9 @@ impl<'a> Executor<'a> {
                 let to_delete: Vec<_> = if let Some(condition) = conditions {
                     records
                         .into_iter()
-                        .filter(|record| condition.evaluate(record, &table_columns).unwrap_or(false))
+                        .filter(|record| {
+                            condition.evaluate(record, &table_columns).unwrap_or(false)
+                        })
                         .collect()
                 } else {
                     records
@@ -266,9 +271,9 @@ impl<'a> Executor<'a> {
                     return self.execute_expression_select(columns);
                 }
 
-                let table_name = table_name.as_ref().ok_or(DBError::Execution(
-                    "SELECT 查询必须指定表名".to_string(),
-                ))?;
+                let table_name = table_name
+                    .as_ref()
+                    .ok_or(DBError::Execution("SELECT 查询必须指定表名".to_string()))?;
 
                 // 获取表的列定义
                 let table_columns = self.storage.get_table_columns(table_name)?;
@@ -321,20 +326,20 @@ impl<'a> Executor<'a> {
             Plan::ShowTables => {
                 // 获取当前数据库中所有表名
                 let table_names = self.storage.get_table_names()?;
-                
+
                 // 创建结果集
                 let mut result_rows = Vec::new();
                 for table_name in table_names {
                     result_rows.push(vec![Value::String(table_name)]);
                 }
-                
+
                 let result_set = ResultSet {
                     columns: vec!["Tables".to_string()],
                     rows: result_rows,
                 };
-                
+
                 Ok(QueryResult::ResultSet(result_set))
-            },
+            }
         }
     }
 

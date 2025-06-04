@@ -289,10 +289,9 @@ impl Page {
         }
 
         // 执行批量更新
-        let record_mut = self.records[slot].as_mut().ok_or(DBError::IO(format!(
-            "记录槽位 {} 已被删除",
-            slot
-        )))?;
+        let record_mut = self.records[slot]
+            .as_mut()
+            .ok_or(DBError::IO(format!("记录槽位 {} 已被删除", slot)))?;
         for (field_index, new_value) in updates {
             record_mut[field_index] = new_value;
         }
