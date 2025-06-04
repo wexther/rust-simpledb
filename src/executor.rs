@@ -123,10 +123,20 @@ impl<'a> Executor<'a> {
                     Err(e) => Err(DBError::Schema(e.to_string())),
                 }
             }
-            Plan::DropTable { name } => match self.storage.drop_table(&name) {
-                Ok(_) => Ok(QueryResult::Success),
-                Err(e) => Err(DBError::Schema(e.to_string())),
-            },
+            Plan::DropTable { name_vec } => {
+                let mut last_err = None;
+                for table_name in name_vec {
+                    match self.storage.drop_table(table_name) {
+                        Ok(_) => {} // 删除成功，继续
+                        Err(e) => last_err = Some(e), // 记录最后一个错误
+                    }
+                }
+                if let Some(e) = last_err {
+                    Err(DBError::Schema(e.to_string()))
+                } else {
+                    Ok(QueryResult::Success)
+                }
+            }
 
             Plan::Insert {
                 table_name,
