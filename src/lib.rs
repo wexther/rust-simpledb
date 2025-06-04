@@ -241,7 +241,7 @@ impl SimpleDB {
                     // 执行 SQL 命令
                     if !trimmed.starts_with('.') {
                         match self.execute_single_sql(trimmed) {
-                            Ok(result) => println!("{}", result),
+                            Ok(result) => print!("{}", result),
                             Err(e) => eprintln!("错误: {}", e),
                         }
                         println!();

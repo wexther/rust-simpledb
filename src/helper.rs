@@ -191,6 +191,10 @@ impl SQLCompleter {
         "TIME",
         "DATETIME",
         "TIMESTAMP",
+        "SHOW",
+        "DATABASES",
+        "DATABASE",
+        "TABLES",
     ];
 
     // 元命令

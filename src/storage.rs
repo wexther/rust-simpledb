@@ -270,6 +270,11 @@ impl StorageEngine {
         let database = self.current_database()?;
         Ok(database.get_table_names())
     }
+
+    /// 获取所有数据库的名称
+    pub fn get_database_names(&self) -> Vec<String> {
+        self.databases.keys().cloned().collect()
+    }
 }
 
 // 实现 Drop trait 以在存储引擎被销毁时自动保存数据

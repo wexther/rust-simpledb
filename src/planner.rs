@@ -159,6 +159,15 @@ impl Planner {
                         Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
                     }
                 }
+                ast::ObjectType::Database => {
+                    if let Some(name) = names.first() {
+                        Ok(Plan::DropDatabase {
+                            name: name.to_string(),
+                        })
+                    } else {
+                        Err(DBError::Parse("DROP DATABASE缺少数据库名".to_string()))
+                    }
+                }
                 _ => Err(DBError::Parse(format!(
                     "不支持的DROP操作: {:?}",
                     object_type
@@ -242,19 +251,19 @@ impl Planner {
                 })
             }
 
-            ast::Statement::CreateSchema { schema_name, .. } => Ok(Plan::CreateDatabase {
-                name: schema_name.to_string(),
-            }),
-
             ast::Statement::ShowTables { .. } => Ok(Plan::ShowTables),
             ast::Statement::ShowDatabases { .. } => Ok(Plan::ShowDatabases),
+
+            ast::Statement::CreateDatabase { db_name, .. } => Ok(Plan::CreateDatabase {
+                name: db_name.to_string(),
+            }),
 
             _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
         }
     }
 
     /// 分析 SELECT 查询
-    pub fn analyze_select(&self, query: &ast::Query) -> Result<Plan> {
+    fn analyze_select(&self, query: &ast::Query) -> Result<Plan> {
         let body = match &*query.body {
             ast::SetExpr::Select(select) => &**select,
             _ => return Err(DBError::Planner("仅支持SELECT查询".to_string())),
@@ -731,7 +740,7 @@ impl Condition {
                 }
             }
             // ... 其他分支的实现
-            _ => todo!("完整实现"),
+            _ => Err(DBError::Execution("仅支持表达式类型的条件评估".to_string())),
         }
     }
 }
