@@ -153,9 +153,18 @@ impl SimpleDB {
 
         let results = self.execute_sql_file(file_path)?;
 
-        for result in &results {
+        let len = results.len();
+        for (i, result) in results.iter().enumerate() {
             match result {
-                Ok(res) => print!("{}", res),
+                Ok(res) => {
+                    print!("{}", res);
+                    // 如果是结果集，且不是最后一个结果，输出一个空行
+                    if let QueryResult::ResultSet(_) = res {
+                        if i + 1 < len {
+                            println!();
+                        }
+                    }
+                }
                 Err(e) => eprintln!("执行错误: {}", e),
             }
         }
