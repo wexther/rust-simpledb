@@ -34,7 +34,7 @@ impl fmt::Display for ResultSet {
                         Value::Float(f) => f.to_string(),
                         Value::String(s) => s.clone(),
                         Value::Boolean(b) => b.to_string(),
-                        Value::Null => "NULL".to_string(),
+                        Value::Null => "".to_string(),
                     };
                     max_width = max_width.max(cell_str.len());
                 }
@@ -75,7 +75,7 @@ impl fmt::Display for ResultSet {
                         Value::Float(f) => f.to_string(),
                         Value::String(s) => s.clone(),
                         Value::Boolean(b) => b.to_string(),
-                        Value::Null => "NULL".to_string(),
+                        Value::Null => "".to_string(),
                     }
                 } else {
                     "".to_string()
