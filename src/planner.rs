@@ -761,7 +761,16 @@ impl Condition {
                 }
             }
             // ... 其他分支的实现
-            _ => Err(DBError::Execution("仅支持表达式类型的条件评估".to_string())),
+            Condition::IsNull(expr) => {
+                let value = expr.evaluate(record, columns)?;
+                Ok(matches!(value, Value::Null))
+            }
+            Condition::IsNotNull(expr) => {
+                let value = expr.evaluate(record, columns)?;
+                Ok(!matches!(value, Value::Null))
+            }
+            Condition::Constant(b) => Ok(*b),
+            //_ => Err(DBError::Execution("仅支持表达式类型的条件评估".to_string())),
         }
     }
 }
