@@ -186,7 +186,7 @@ impl<'a> Executor<'a> {
                                 // 使用默认值或 NULL
                                 if table_col.not_null {
                                     return Err(DBError::Execution(format!(
-                                        "列 '{}' 不允许为 NULL，但未在 INSERT 中指定值",
+                                        "Field ‘{}’ doesn‘t have a default value",
                                         table_col.name
                                     )));
                                 }

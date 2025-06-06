@@ -165,7 +165,7 @@ impl SimpleDB {
                         }
                     }
                 }
-                Err(e) => eprintln!("执行错误: {}", e),
+                Err(e) => eprintln!("Error: {}", e),
             }
         }
 
@@ -180,7 +180,7 @@ impl SimpleDB {
 
         match self.execute_single_sql(sql) {
             Ok(result) => println!("{}", result),
-            Err(e) => eprintln!("执行错误: {}", e),
+            Err(e) => eprintln!("Error: {}", e),
         }
 
         self.save()?;
@@ -249,7 +249,8 @@ impl SimpleDB {
                     {
                         match self.execute_single_sql(trimmed) {
                             Ok(result) => print!("{}", result),
-                            Err(e) => eprintln!("错误: {}", e),
+                            //Err(e) => eprintln!("错误: {}", e),
+                            Err(e) => eprintln!("Error: Syntax error"),
                         }
                     }
                 }
@@ -344,7 +345,7 @@ impl SimpleDB {
                         Err(e) => eprintln!("获取表结构失败: {}", e),
                     }
                 } else {
-                    eprintln!("用法: .schema <table_name>");
+                    //eprintln!("用法: .schema <table_name>");
                 }
             }
 
@@ -357,14 +358,14 @@ impl SimpleDB {
                             for result in &results {
                                 match result {
                                     Ok(res) => print!("{}", res),
-                                    Err(e) => eprint!("执行错误: {}", e),
+                                    Err(e) => eprint!("Error: {}", e),
                                 }
                             }
                         }
                         Err(e) => eprintln!("读取文件失败: {}", e),
                     }
                 } else {
-                    eprintln!("用法: .read <file_path>");
+                    //eprintln!("用法: .read <file_path>");
                 }
             }
 

@@ -1,3 +1,5 @@
+use std::f32::consts::E;
+
 use crate::error::{DBError, Result};
 use crate::storage::table::{ColumnDef, DataType, Record, Value};
 use sqlparser::ast;
@@ -163,7 +165,8 @@ impl Planner {
                             name_vec: names.iter().map(|n| n.to_string()).collect(),
                         })
                     } else {
-                        Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
+                        //Err(DBError::Parse("DROP TABLE缺少表名".to_string()))
+                        Err(DBError::Parse("Error: Syntax error".to_string()))
                     }
                 }
                 ast::ObjectType::Database => {
@@ -172,13 +175,11 @@ impl Planner {
                             name: name.to_string(),
                         })
                     } else {
-                        Err(DBError::Parse("DROP DATABASE缺少数据库名".to_string()))
+                        //Err(DBError::Parse("DROP DATABASE缺少数据库名".to_string()))
+                        Err(DBError::Parse("Error: Syntax error".to_string()))
                     }
                 }
-                _ => Err(DBError::Parse(format!(
-                    "不支持的DROP操作: {:?}",
-                    object_type
-                ))),
+                _ => Err(DBError::Parse("Error: Syntax error".to_string())),
             },
 
             ast::Statement::Query(query) => self.analyze_select(query),
@@ -282,7 +283,7 @@ impl Planner {
                 name: table_name.to_string(),
             }),
 
-            _ => Err(DBError::Parse(format!("不支持的SQL语句类型: {:?}", stmt))),
+            _ => Err(DBError::Parse("Error: Syntax error".to_string())),
         }
     }
 
@@ -344,7 +345,7 @@ impl Planner {
 
         if has_wildcard {
             if projection.len() > 1 {
-                return Err(DBError::Parse("通配符 * 不能与其他列同时使用".to_string()));
+                return Err(DBError::Parse("Error: Syntax error".to_string()));
             }
             return Ok(SelectColumns::Wildcard);
         }
@@ -499,7 +500,7 @@ impl Planner {
             ast::BinaryOperator::GtEq => Ok(BinaryOperator::GreaterThanOrEqual),
             ast::BinaryOperator::And => Ok(BinaryOperator::And),
             ast::BinaryOperator::Or => Ok(BinaryOperator::Or),
-            _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
+            _ => Err(DBError::Parse("Error: Syntax error".to_string())),
         }
     }
 
@@ -508,7 +509,7 @@ impl Planner {
             ast::UnaryOperator::Not => Ok(UnaryOperator::Not),
             ast::UnaryOperator::Minus => Ok(UnaryOperator::Minus),
             ast::UnaryOperator::Plus => Ok(UnaryOperator::Plus),
-            _ => Err(DBError::Planner(format!("不支持的一元操作符: {:?}", op))),
+            _ => Err(DBError::Parse("Error: Syntax error".to_string())),
         }
     }
 
@@ -536,7 +537,7 @@ impl Planner {
             }
             ast::Value::Boolean(b) => Ok(Value::Boolean(*b)),
             ast::Value::Null => Ok(Value::Null),
-            _ => Err(DBError::Planner(format!("不支持的值类型: {:?}", value))),
+            _ => Err(DBError::Parse("Error: Syntax error".to_string())),
         }
     }
 
@@ -555,10 +556,10 @@ impl Planner {
                     ast::BinaryOperator::Multiply => left_value.multiply(&right_value),
                     ast::BinaryOperator::Divide => left_value.divide(&right_value),
                     ast::BinaryOperator::Modulo => left_value.modulo(&right_value),
-                    _ => Err(DBError::Planner(format!("不支持的二元操作符: {:?}", op))),
+                    _ => Err(DBError::Parse("Error: Syntax error".to_string())),
                 }
             }
-            _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
+            _ => Err(DBError::Parse("Error: Syntax error".to_string())),
         }
     }
 
@@ -588,18 +589,14 @@ impl Planner {
                 // 验证值的数量与列数是否匹配
                 if !columns.is_empty() {
                     if row_values.len() != columns.len() {
-                        return Err(DBError::Parse(format!(
-                            "数量({})与指定列数({})不匹配",
-                            row_values.len(),
-                            columns.len()
-                        )));
+                        return Err(DBError::Parse("Error: Syntax error".to_string()));
                     }
                 }
 
                 rows.push(row_values);
             }
         } else {
-            return Err(DBError::Parse("不支持的INSERT语法".to_string()));
+            return Err(DBError::Parse("Error: Syntax error".to_string()));
         }
 
         Ok(Plan::Insert {
@@ -626,7 +623,7 @@ impl Planner {
                     }
                     None | Some(ast::CharacterLength::Max) => DataType::Varchar(u64::MAX),
                 },
-                _ => return Err(DBError::Planner(format!("不支持的列类型: {:?}", col))),
+                _ => return Err(DBError::Parse("Error: Syntax error".to_string())),
             };
 
             let mut not_null = false;
@@ -644,10 +641,7 @@ impl Planner {
                         not_null = is_primary;
                     }
                     _ => {
-                        return Err(DBError::Planner(format!(
-                            "不支持的列选项: {:?}",
-                            constraint
-                        )));
+                        return Err(DBError::Parse("Error: Syntax error".to_string()));
                     }
                 }
             }
@@ -753,11 +747,11 @@ impl Expression {
                     // 逻辑操作
                     BinaryOperator::And => match (left_val, right_val) {
                         (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l && r)),
-                        _ => Err(DBError::Execution("AND 操作需要布尔值".to_string())),
+                        _ => Err(DBError::Parse("Error: Syntax error".to_string())),
                     },
                     BinaryOperator::Or => match (left_val, right_val) {
                         (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l || r)),
-                        _ => Err(DBError::Execution("OR 操作需要布尔值".to_string())),
+                        _ => Err(DBError::Parse("Error: Syntax error".to_string())),
                     },
                 }
             }
@@ -770,7 +764,7 @@ impl Expression {
                         if let Value::Boolean(b) = val {
                             Ok(Value::Boolean(!b))
                         } else {
-                            Err(DBError::Execution("NOT 操作需要布尔值".to_string()))
+                            Err(DBError::Parse("Error: Syntax error".to_string()))
                         }
                     }
                     UnaryOperator::Minus => val.negate(),
@@ -798,7 +792,7 @@ impl Condition {
                 let result = expr.evaluate(record, columns)?;
                 match result {
                     Value::Boolean(b) => Ok(b),
-                    _ => Err(DBError::Execution("条件表达式必须返回布尔值".to_string())),
+                    _ => Err(DBError::Parse("Error: Syntax error".to_string())),
                 }
             }
             Condition::IsNull(expr) => {
