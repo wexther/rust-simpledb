@@ -53,6 +53,9 @@ pub enum Condition {
     IsNull(Expression),
     IsNotNull(Expression),
     Constant(bool),
+    And(Box<Condition>, Box<Condition>),
+    Or(Box<Condition>, Box<Condition>),
+    Not(Box<Condition>),
 }
 
 /// 选择列枚举
@@ -408,39 +411,77 @@ impl Planner {
                 Ok(Expression::Unary { operator, operand })
             }
 
+            ast::Expr::IsNull(inner) => {
+                // 递归转换表达式
+                let inner_expr = self.convert_expr(inner)?;
+                // 这里返回一个特殊的 Expression::IsNull 或直接返回错误
+                // 推荐直接在 Condition 层处理 IS NULL
+                // 所以这里返回 Err，或者你可以定义 Expression::IsNull
+                Err(DBError::Planner("IS NULL 应在条件层处理".to_string()))
+            }
+            ast::Expr::IsNotNull(inner) => {
+                let inner_expr = self.convert_expr(inner)?;
+                Err(DBError::Planner("IS NOT NULL 应在条件层处理".to_string()))
+            }
+
             _ => Err(DBError::Planner(format!("不支持的表达式: {:?}", expr))),
         }
     }
 
     /// 分析条件
     pub fn analyze_condition(&self, expr: &ast::Expr) -> Result<Condition> {
+        use sqlparser::ast::{BinaryOperator, Expr};
+
         match expr {
-            ast::Expr::IsNull(inner_expr) => {
+            Expr::IsNull(inner_expr) => {
                 let expr = self.convert_expr(inner_expr)?;
                 Ok(Condition::IsNull(expr))
             }
-
-            ast::Expr::IsNotNull(inner_expr) => {
+            Expr::IsNotNull(inner_expr) => {
                 let expr = self.convert_expr(inner_expr)?;
                 Ok(Condition::IsNotNull(expr))
             }
-
-            ast::Expr::Value(value) => {
-                if let ast::Value::Boolean(b) = &value.value {
+            Expr::BinaryOp { left, op, right } => {
+                match op {
+                    BinaryOperator::And => Ok(Condition::And(
+                        Box::new(self.analyze_condition(left)?),
+                        Box::new(self.analyze_condition(right)?),
+                    )),
+                    BinaryOperator::Or => Ok(Condition::Or(
+                        Box::new(self.analyze_condition(left)?),
+                        Box::new(self.analyze_condition(right)?),
+                    )),
+                    _ => {
+                        // 其它二元操作符作为表达式条件
+                        let expr = self.convert_expr(expr)?;
+                        Ok(Condition::Expression(expr))
+                    }
+                }
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                use sqlparser::ast::UnaryOperator;
+                match op {
+                    UnaryOperator::Not => Ok(Condition::Not(Box::new(self.analyze_condition(inner)?))),
+                    _ => {
+                        let expr = self.convert_expr(expr)?;
+                        Ok(Condition::Expression(expr))
+                    }
+                }
+            }
+            Expr::Value(value) => {
+                if let sqlparser::ast::Value::Boolean(b) = &value.value {
                     Ok(Condition::Constant(*b))
                 } else {
                     let expr = self.convert_expr(expr)?;
                     Ok(Condition::Expression(expr))
                 }
             }
-
             _ => {
                 let expr = self.convert_expr(expr)?;
                 Ok(Condition::Expression(expr))
             }
         }
     }
-
     // ====== 辅助方法 ======
 
     fn convert_binary_operator(&self, op: &ast::BinaryOperator) -> Result<BinaryOperator> {
@@ -760,7 +801,6 @@ impl Condition {
                     _ => Err(DBError::Execution("条件表达式必须返回布尔值".to_string())),
                 }
             }
-            // ... 其他分支的实现
             Condition::IsNull(expr) => {
                 let value = expr.evaluate(record, columns)?;
                 Ok(matches!(value, Value::Null))
@@ -770,7 +810,15 @@ impl Condition {
                 Ok(!matches!(value, Value::Null))
             }
             Condition::Constant(b) => Ok(*b),
-            //_ => Err(DBError::Execution("仅支持表达式类型的条件评估".to_string())),
+            Condition::And(left, right) => {
+                Ok(left.evaluate(record, columns)? && right.evaluate(record, columns)?)
+            }
+            Condition::Or(left, right) => {
+                Ok(left.evaluate(record, columns)? || right.evaluate(record, columns)?)
+            }
+            Condition::Not(inner) => {
+                Ok(!inner.evaluate(record, columns)?)
+            }
         }
     }
 }
@@ -1082,6 +1130,9 @@ mod tests {
                     panic!("预期生成表达式条件，而不是 IS NOT NULL")
                 }
                 Condition::Constant(_) => panic!("预期生成表达式条件，而不是常量条件"),
+                Condition::And(_, _) | Condition::Or(_, _) | Condition::Not(_) => {
+                    panic!("预期生成表达式条件，而不是逻辑组合条件")
+                }
             }
 
             // 验证没有 ORDER BY 子句
