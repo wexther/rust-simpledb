@@ -51,6 +51,11 @@ src/
 ## 编译构建
 
 使用cargo即可。
+使用以下命令安装。
+
+```bash
+cargo build --release
+```
 
 ## 输入
 
