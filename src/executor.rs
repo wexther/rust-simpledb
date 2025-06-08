@@ -17,6 +17,10 @@ pub struct ResultSet {
 
 impl fmt::Display for ResultSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // 如果没有数据行，什么都不输出
+        if self.rows.is_empty() {
+            return Ok(());
+        }
         if self.columns.is_empty() {
             return Ok(());
         }

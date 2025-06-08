@@ -159,14 +159,19 @@ impl SimpleDB {
         let results = results?;
 
         let len = results.len();
+        let mut has_output = false;
         for (i, result) in results.iter().enumerate() {
             match result {
                 Ok(res) => {
-                    print!("{}", res);
-                    // 如果是结果集，且不是最后一个结果，输出一个空行
-                    if let QueryResult::ResultSet(_) = res {
-                        if i + 1 < len {
-                            println!();
+                    let output = format!("{}", res);
+                    if !output.trim().is_empty() {
+                        print!("{}", output);
+                        has_output = true;
+                        // 如果是结果集，且不是最后一个结果，输出一个空行
+                        if let QueryResult::ResultSet(_) = res {
+                            if i + 1 < len {
+                                println!();
+                            }
                         }
                     }
                 }
@@ -175,6 +180,10 @@ impl SimpleDB {
                     return Ok(());
                 }
             }
+        }
+
+        if !has_output {
+            println!("There are no results to be displayed.");
         }
 
         self.save()?;
