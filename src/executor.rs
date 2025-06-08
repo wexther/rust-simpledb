@@ -186,7 +186,7 @@ impl<'a> Executor<'a> {
                                 // 使用默认值或 NULL
                                 if table_col.not_null {
                                     return Err(DBError::Execution(format!(
-                                        "Field ‘{}’ doesn‘t have a default value",
+                                        "Field '{}' doesn't have a default value",
                                         table_col.name
                                     )));
                                 }
