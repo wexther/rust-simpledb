@@ -1,5 +1,3 @@
-use std::f32::consts::E;
-
 use crate::error::{DBError, Result};
 use crate::storage::table::{ColumnDef, DataType, Record, Value};
 use sqlparser::ast;
@@ -279,7 +277,7 @@ impl Planner {
                 ))),
             },
 
-            ast::Statement::ExplainTable { table_name,.. } => Ok(Plan::DescribeTable {
+            ast::Statement::ExplainTable { table_name, .. } => Ok(Plan::DescribeTable {
                 name: table_name.to_string(),
             }),
 
@@ -414,14 +412,14 @@ impl Planner {
 
             ast::Expr::IsNull(inner) => {
                 // 递归转换表达式
-                let inner_expr = self.convert_expr(inner)?;
+                self.convert_expr(inner)?;
                 // 这里返回一个特殊的 Expression::IsNull 或直接返回错误
                 // 推荐直接在 Condition 层处理 IS NULL
                 // 所以这里返回 Err，或者你可以定义 Expression::IsNull
                 Err(DBError::Planner("IS NULL 应在条件层处理".to_string()))
             }
             ast::Expr::IsNotNull(inner) => {
-                let inner_expr = self.convert_expr(inner)?;
+                self.convert_expr(inner)?;
                 Err(DBError::Planner("IS NOT NULL 应在条件层处理".to_string()))
             }
 
@@ -462,7 +460,9 @@ impl Planner {
             Expr::UnaryOp { op, expr: inner } => {
                 use sqlparser::ast::UnaryOperator;
                 match op {
-                    UnaryOperator::Not => Ok(Condition::Not(Box::new(self.analyze_condition(inner)?))),
+                    UnaryOperator::Not => {
+                        Ok(Condition::Not(Box::new(self.analyze_condition(inner)?)))
+                    }
                     _ => {
                         let expr = self.convert_expr(expr)?;
                         Ok(Condition::Expression(expr))
@@ -810,9 +810,7 @@ impl Condition {
             Condition::Or(left, right) => {
                 Ok(left.evaluate(record, columns)? || right.evaluate(record, columns)?)
             }
-            Condition::Not(inner) => {
-                Ok(!inner.evaluate(record, columns)?)
-            }
+            Condition::Not(inner) => Ok(!inner.evaluate(record, columns)?),
         }
     }
 }

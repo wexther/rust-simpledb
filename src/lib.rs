@@ -250,7 +250,7 @@ impl SimpleDB {
                         match self.execute_single_sql(trimmed) {
                             Ok(result) => print!("{}", result),
                             //Err(e) => eprintln!("错误: {}", e),
-                            Err(e) => eprintln!("Error: Syntax error"),
+                            Err(_) => eprintln!("Error: Syntax error"),
                         }
                     }
                 }
@@ -326,7 +326,7 @@ impl SimpleDB {
                 println!("  详细模式: {}", self.config.verbose);
             }
 
-            ".v"|".verbose" => {
+            ".v" | ".verbose" => {
                 self.config.verbose = !self.config.verbose;
                 if self.config.verbose {
                     println!("详细模式已启用");

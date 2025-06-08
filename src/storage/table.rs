@@ -80,7 +80,7 @@ impl Table {
                 // 检查所有现有记录是否有重复值
                 for &page_id in &self.page_ids {
                     let page = buffer_manager.get_page(page_id)?;
-                    
+
                     // 遍历页面中的所有记录
                     for (_, record) in page.iter_records() {
                         let record_values = record.values();

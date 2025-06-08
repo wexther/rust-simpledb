@@ -127,7 +127,7 @@ impl<'a> Executor<'a> {
                 let mut last_err = None;
                 for table_name in name_vec {
                     match self.storage.drop_table(table_name) {
-                        Ok(_) => {} // 删除成功，继续
+                        Ok(_) => {}                   // 删除成功，继续
                         Err(e) => last_err = Some(e), // 记录最后一个错误
                     }
                 }
@@ -384,7 +384,13 @@ impl<'a> Executor<'a> {
                 }
 
                 let result_set = ResultSet {
-                    columns: vec!["Column".to_string(), "Type".to_string(), "Not Null".to_string(), "Is Primary".to_string(), "Unique".to_string()],
+                    columns: vec![
+                        "Column".to_string(),
+                        "Type".to_string(),
+                        "Not Null".to_string(),
+                        "Is Primary".to_string(),
+                        "Unique".to_string(),
+                    ],
                     rows: result_rows,
                 };
 
