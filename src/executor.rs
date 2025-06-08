@@ -6,6 +6,7 @@ use crate::storage::table::{ColumnDef, DataType, Record, Value};
 use super::planner::SelectColumns;
 
 use std::fmt;
+use regex::Regex;
 
 /// 查询结果数据
 #[derive(Debug)]
@@ -24,7 +25,7 @@ impl fmt::Display for ResultSet {
         let mut column_widths = Vec::new();
 
         for (col_idx, column_name) in self.columns.iter().enumerate() {
-            let mut max_width = column_name.len();
+            let mut max_width = format_column_header(column_name).len();
 
             // 检查该列中所有数据的宽度
             for row in &self.rows {
@@ -40,10 +41,8 @@ impl fmt::Display for ResultSet {
                 }
             }
 
-            // 每个单元格左右边界相距至少5个空格，最长字段小于3时也要保证至少3个字符
             let min_content_width = 3;
             let actual_content_width = max_width.max(min_content_width);
-            // 左右各1个空格 + 内容宽度，但总宽度至少5
             let total_width = (actual_content_width + 2).max(5);
             column_widths.push(total_width);
         }
@@ -51,7 +50,8 @@ impl fmt::Display for ResultSet {
         // 打印表头
         write!(f, "|")?;
         for (column_name, &width) in self.columns.iter().zip(&column_widths) {
-            write!(f, " {:<width$} |", column_name, width = width - 2)?;
+            let formatted = format_column_header(column_name);
+            write!(f, " {:<width$} |", formatted, width = width - 2)?;
         }
         writeln!(f)?;
 
@@ -604,5 +604,22 @@ impl<'a> Executor<'a> {
             // 不同类型之间的比较（可以根据需要调整规则）
             _ => Ordering::Equal,
         }
+    }
+}
+
+/// 格式化select表头：运算符前后有字母时去空格，前后都是数字时保留空格
+fn format_column_header(name: &str) -> String {
+    // 如果有字母，去掉所有运算符两侧的空格
+    if name.chars().any(|c| c.is_ascii_alphabetic()) {
+        // 去掉 + - * / 两侧的所有空格
+        let re = Regex::new(r"\s*([+\-*/])\s*").unwrap();
+        re.replace_all(name, "$1").to_string()
+    } else {
+        // 只包含数字和运算符，运算符两侧加空格
+        let re = Regex::new(r"\s*([+\-*/])\s*").unwrap();
+        re.replace_all(name, " $1 ").to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
