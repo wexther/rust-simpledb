@@ -151,7 +151,12 @@ impl SimpleDB {
             println!("执行 SQL 文件模式: {}", file_path);
         }
 
-        let results = self.execute_sql_file(file_path)?;
+        let results = self.execute_sql_file(file_path);
+        if let Err(e) = results {
+            println!("Error: {}", e);
+            return Ok(());
+        }
+        let results = results?;
 
         let len = results.len();
         for (i, result) in results.iter().enumerate() {
@@ -166,7 +171,7 @@ impl SimpleDB {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    println!("Error: {}", e);
                     return Ok(());
                 }
             }
