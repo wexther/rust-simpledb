@@ -86,7 +86,7 @@ impl Table {
                         let record_values = record.values();
                         if i < record_values.len() && &record_values[i] == value {
                             return Err(DBError::Schema(format!(
-                                "Duplicate entry '{}' for key 'PRIMARY'”。",
+                                "Duplicate entry '{}' for key 'PRIMARY'",
                                 value
                             )));
                         }

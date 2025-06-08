@@ -18,5 +18,6 @@ CREATE TABLE test_table_for_null (
 
 INSERT INTO test_table_for_null VALUES (1, 1, 1);
 INSERT INTO test_table_for_null VALUES (2, NULL, 2);
+INSERT INTO test_table_for_null VALUES (2, NULL, 3);
 
 SELECT * FROM test_table_for_null;
