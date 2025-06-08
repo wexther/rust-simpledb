@@ -68,7 +68,7 @@ impl Table {
         for (value, column) in values.iter().zip(&self.columns) {
             if value == &Value::Null && column.not_null {
                 return Err(DBError::Schema(format!(
-                    "Field ‘{}’ doesn‘t have a default value",
+                    "Field '{}' doesn't have a default value",
                     column.name
                 )));
             }
@@ -86,7 +86,7 @@ impl Table {
                         let record_values = record.values();
                         if i < record_values.len() && &record_values[i] == value {
                             return Err(DBError::Schema(format!(
-                                "Duplicate entry ‘{}’ for key ‘PRIMARY’”。",
+                                "Duplicate entry '{}' for key 'PRIMARY'”。",
                                 value
                             )));
                         }
