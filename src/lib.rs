@@ -165,7 +165,10 @@ impl SimpleDB {
                         }
                     }
                 }
-                Err(e) => eprintln!("Error: {}", e),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    return Ok(());
+                }
             }
         }
 
