@@ -19,7 +19,7 @@ impl DiskManager {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
-            .create(true)
+            .create(true).truncate(true)
             .open(path)
             .map_err(|e| DBError::IO(format!("无法打开数据库文件: {}", e)))?;
 

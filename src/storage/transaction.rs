@@ -9,6 +9,13 @@ pub struct Transaction {
     // 可以添加事务日志、锁信息等
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
 impl Transaction {
     pub fn new() -> Self {
         static mut NEXT_ID: u64 = 0;

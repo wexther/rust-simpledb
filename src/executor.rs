@@ -297,12 +297,9 @@ impl<'a> Executor<'a> {
 
                 // 应用WHERE条件过滤
                 if let Some(condition) = conditions {
-                    records = records
-                        .into_iter()
-                        .filter(|record| {
+                    records.retain(|record| {
                             condition.evaluate(record, &table_columns).unwrap_or(false)
-                        })
-                        .collect();
+                        });
                 }
 
                 // 应用ORDER BY排序
@@ -497,7 +494,7 @@ impl<'a> Executor<'a> {
     fn execute_expression_select(&self, columns: &SelectColumns) -> Result<QueryResult> {
         match columns {
             SelectColumns::Wildcard => {
-                return Err(DBError::Execution("无表查询不支持通配符 *".to_string()));
+                Err(DBError::Execution("无表查询不支持通配符 *".to_string()))
             }
             SelectColumns::Columns(items) => {
                 // 创建一个空记录用于表达式求值
@@ -533,7 +530,7 @@ impl<'a> Executor<'a> {
     /// 对记录进行排序
     fn sort_records(
         &self,
-        records: &mut Vec<Record>,
+        records: &mut [Record],
         order_items: &[super::planner::OrderByItem],
         table_columns: &[ColumnDef],
     ) -> Result<()> {

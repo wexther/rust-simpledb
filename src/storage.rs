@@ -82,7 +82,7 @@ impl StorageEngine {
                 if let Some(db_name) = path.file_name().and_then(|n| n.to_str()) {
                     // 加载数据库
                     let mut database =
-                        Database::new(db_name.to_string(), &self.get_db_path(db_name))?;
+                        Database::new(db_name.to_string(), self.get_db_path(db_name))?;
                     database.load()?;
                     self.databases.insert(db_name.to_string(), database);
                 }

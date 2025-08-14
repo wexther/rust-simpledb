@@ -226,10 +226,8 @@ impl SimpleDB {
 
         // 尝试加载历史记录
         let history_file = "data/simple_db_history.txt";
-        if rl.load_history(history_file).is_err() {
-            if self.config.verbose {
-                println!("未找到历史记录文件，将创建新文件");
-            }
+        if rl.load_history(history_file).is_err() && self.config.verbose {
+            println!("未找到历史记录文件，将创建新文件");
         }
 
         println!("Simple DB 交互模式");

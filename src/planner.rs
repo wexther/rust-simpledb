@@ -139,6 +139,7 @@ pub enum Plan {
 }
 
 /// 统一的查询计划生成器
+#[derive(Default)]
 pub struct Planner;
 
 impl Planner {
@@ -189,11 +190,10 @@ impl Planner {
                 selection,
                 ..
             } => {
-                let table_name = match table {
-                    sqlparser::ast::TableWithJoins { relation, .. } => match relation {
-                        ast::TableFactor::Table { name, .. } => name.to_string(),
-                        _ => return Err(DBError::Planner("仅支持简单表引用".to_string())),
-                    },
+                let sqlparser::ast::TableWithJoins { relation, .. } = table;
+                let table_name = match relation {
+                    ast::TableFactor::Table { name, .. } => name.to_string(),
+                    _ => return Err(DBError::Planner("仅支持简单表引用".to_string())),
                 };
                 let mut set_pairs = Vec::new();
 
@@ -230,7 +230,7 @@ impl Planner {
                     let from = &delete.from;
                     let from_str = from.to_string();
                     //此时from的格式为“FROM table_name”，需要从中截取出table_name
-                    let parts: Vec<&str> = from_str.trim().split_whitespace().collect();
+                    let parts: Vec<&str> = from_str.split_whitespace().collect();
                     if parts.len() == 2 && parts[0].eq_ignore_ascii_case("from") {
                         parts[1].to_string()
                     } else {
@@ -587,11 +587,10 @@ impl Planner {
                 }
 
                 // 验证值的数量与列数是否匹配
-                if !columns.is_empty() {
-                    if row_values.len() != columns.len() {
+                if !columns.is_empty() && row_values.len() != columns.len() {
                         return Err(DBError::Parse("Error: Syntax error".to_string()));
                     }
-                }
+                
 
                 rows.push(row_values);
             }
@@ -1384,7 +1383,7 @@ mod tests {
 
             match condition {
                 Condition::Constant(val) => {
-                    assert_eq!(val, true);
+                    assert!(val);
                 }
                 _ => panic!("预期生成常量条件"),
             }

@@ -20,6 +20,18 @@ pub struct SQLHelper {
     colored_prompt: String,
 }
 
+impl Default for SQLCompleter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for SQLHelper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SQLHelper {
     pub fn new() -> Self {
         Self {
