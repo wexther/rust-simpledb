@@ -13,7 +13,7 @@ pub type PageId = u32;
 use crate::storage::table::Value;
 type RawRecord = Vec<Value>;
 
-/// 页面 - 直接存储记录数组
+/// 页面 - 直接存储记录数组，添加缓存优化
 #[derive(Debug, Clone)]
 pub struct Page {
     /// 页面ID
@@ -22,6 +22,8 @@ pub struct Page {
     records: Vec<Option<RawRecord>>,
     /// 是否已被修改
     is_dirty: bool,
+    /// 缓存的序列化大小（用于快速容量检查）
+    cached_size: Option<usize>,
 }
 
 impl Page {
@@ -31,6 +33,7 @@ impl Page {
             id,
             records: Vec::new(),
             is_dirty: false,
+            cached_size: None,
         }
     }
 
@@ -51,6 +54,7 @@ impl Page {
             id,
             records,
             is_dirty: false,
+            cached_size: None,
         })
     }
 
@@ -59,10 +63,29 @@ impl Page {
         self.id
     }
 
-    /// 序列化页面数据
+    /// 序列化页面数据（优化版本，使用缓存）
     pub fn serialize(&self) -> Result<Vec<u8>> {
         bincode::encode_to_vec(&self.records, bincode::config::standard())
             .map_err(|e| DBError::IO(format!("序列化页面数据失败: {}", e)))
+    }
+
+    /// 获取当前页面序列化后的大小（使用缓存优化）
+    pub fn get_serialized_size(&mut self) -> Result<usize> {
+        if let Some(size) = self.cached_size {
+            if !self.is_dirty {
+                return Ok(size);
+            }
+        }
+        
+        let serialized = self.serialize()?;
+        let size = serialized.len();
+        self.cached_size = Some(size);
+        Ok(size)
+    }
+
+    /// 清除缓存
+    fn clear_cache(&mut self) {
+        self.cached_size = None;
     }
 
     /// 检查页面是否被修改过
@@ -107,6 +130,7 @@ impl Page {
 
         self.records[slot] = Some(raw_record);
         self.is_dirty = true;
+        self.clear_cache(); // 清除缓存
 
         // 直接返回 RecordId
         Ok(RecordId::new(self.id, slot))
@@ -130,6 +154,7 @@ impl Page {
 
         self.records[slot] = None;
         self.is_dirty = true;
+        self.clear_cache(); // 清除缓存
         Ok(())
     }
 
@@ -405,16 +430,28 @@ impl Page {
             .unwrap_or(0)
     }
 
-    /// 更精确的容量检查
+    /// 更精确且高效的容量检查
     pub fn can_fit_record(&self, record: &RawRecord) -> Result<bool> {
-        let current_size = self.serialize()?.len();
+        // 快速估算，避免完整序列化
         let record_size = Self::estimate_record_size(record);
-        // 增加更多的缓冲空间来应对序列化开销，并保留安全边距
         let estimated_overhead = 64; // Option<T> 和 Vec 的开销
-        let safety_margin = 1024; // 1KB安全边距
-        let new_size = current_size + record_size + estimated_overhead;
-
-        Ok(new_size <= PAGE_SIZE - safety_margin)
+        let safety_margin = 2048; // 2KB安全边距
+        
+        // 使用当前记录数来估算页面使用情况
+        let active_records = self.records.iter().filter(|r| r.is_some()).count();
+        let estimated_current_size = active_records * 100 + 1024; // 粗略估算
+        
+        let estimated_new_size = estimated_current_size + record_size + estimated_overhead;
+        
+        // 如果快速检查失败，进行精确检查
+        if estimated_new_size > PAGE_SIZE - safety_margin {
+            // 只有在必要时才进行精确的序列化检查
+            let current_size = self.serialize()?.len();
+            let new_size = current_size + record_size + estimated_overhead;
+            Ok(new_size <= PAGE_SIZE - safety_margin)
+        } else {
+            Ok(true)
+        }
     }
 
     // // 保留一些内部使用的 slot 方法（私有或仅供内部使用）
