@@ -99,20 +99,32 @@ impl Table {
         for &page_id in &self.page_ids {
             let page = buffer_manager.get_page_mut(page_id)?;
 
-            // 尝试插入记录 - 直接返回 RecordId
-            match page.insert_record(values.clone()) {
-                Ok(record_id) => return Ok(record_id),
-                Err(_) => continue, // 这个页面满了，尝试下一个
+            // 尝试插入记录 - 先检查是否能够容纳
+            if let Ok(true) = page.can_fit_record(&values) {
+                match page.insert_record(values.clone()) {
+                    Ok(record_id) => return Ok(record_id),
+                    Err(_) => continue, // 虽然理论上能放下，但实际插入失败，尝试下一个页面
+                }
             }
         }
 
-        // 所有现有页面都已满，创建新页面
+        // 所有现有页面都已满或第一次插入，创建新页面
         let new_page_id = buffer_manager.create_page()?;
         self.page_ids.push(new_page_id);
 
         // 在新页面中插入记录
         let page = buffer_manager.get_page_mut(new_page_id)?;
-        page.insert_record(values)
+        match page.insert_record(values) {
+            Ok(record_id) => Ok(record_id),
+            Err(e) => {
+                // 如果新页面也无法容纳，说明单条记录太大
+                self.page_ids.pop(); // 移除刚创建的页面
+                Err(DBError::Schema(format!(
+                    "记录太大，无法存储在单个页面中: {}",
+                    e
+                )))
+            }
+        }
     }
 
     /// 删除记录

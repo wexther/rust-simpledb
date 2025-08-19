@@ -3,8 +3,8 @@ use crate::{
     storage::table::{Record, RecordId},
 };
 
-/// 页面大小（默认4KB，可根据需要调整）
-pub const PAGE_SIZE: usize = 4096;
+/// 页面大小（增加到32KB以提供更多缓冲空间）
+pub const PAGE_SIZE: usize = 32768;
 
 /// 页ID类型
 pub type PageId = u32;
@@ -93,12 +93,14 @@ impl Page {
 
     /// 插入记录 - 返回完整的 RecordId
     pub fn insert_record(&mut self, raw_record: RawRecord) -> Result<RecordId> {
+        // 首先检查记录是否能放入当前页面
+        if !self.can_fit_record(&raw_record)? {
+            return Err(DBError::IO("页面空间不足，需要新页面".to_string()));
+        }
+
         let slot = if let Some(slot) = self.records.iter().position(|r| r.is_none()) {
             slot
         } else {
-            if !self.can_fit(1)? {
-                return Err(DBError::IO("页面空间不足".to_string()));
-            }
             self.records.push(None);
             self.records.len() - 1
         };
@@ -185,10 +187,13 @@ impl Page {
             .map_err(|e| DBError::IO(format!("估算页面大小失败: {}", e)))?
             .len();
 
-        if new_size > PAGE_SIZE {
+        // 增加一些缓冲空间以避免边界情况
+        let max_allowed_size = PAGE_SIZE - 1024; // 保留1KB的缓冲空间
+        
+        if new_size > max_allowed_size {
             return Err(DBError::IO(format!(
-                "替换记录后页面大小({} bytes)超出限制({} bytes)",
-                new_size, PAGE_SIZE
+                "替换记录后页面大小({} bytes)将超出安全限制({} bytes)，需要重新分配到新页面",
+                new_size, max_allowed_size
             )));
         }
 
@@ -404,9 +409,12 @@ impl Page {
     pub fn can_fit_record(&self, record: &RawRecord) -> Result<bool> {
         let current_size = self.serialize()?.len();
         let record_size = Self::estimate_record_size(record);
-        let new_size = current_size + record_size + 8; // +8 for Option overhead
+        // 增加更多的缓冲空间来应对序列化开销，并保留安全边距
+        let estimated_overhead = 64; // Option<T> 和 Vec 的开销
+        let safety_margin = 1024; // 1KB安全边距
+        let new_size = current_size + record_size + estimated_overhead;
 
-        Ok(new_size <= PAGE_SIZE)
+        Ok(new_size <= PAGE_SIZE - safety_margin)
     }
 
     // // 保留一些内部使用的 slot 方法（私有或仅供内部使用）
