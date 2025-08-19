@@ -1,10 +1,31 @@
 use simple_db::{SimpleDB, DBConfig};
 use std::time::Instant;
 
+/// 从环境变量获取配置值，如果没有则使用默认值
+fn get_env_or_default(key: &str, default: usize) -> usize {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 /// 简化的性能测试
 #[test]
 fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Simple DB 性能测试 ===\n");
+
+    // 从环境变量读取配置
+    let insert_count = get_env_or_default("PERF_INSERT_COUNT", 1000);
+    let query_count = get_env_or_default("PERF_QUERY_COUNT", 100);
+    let update_count = get_env_or_default("PERF_UPDATE_COUNT", 100);
+    let delete_count = get_env_or_default("PERF_DELETE_COUNT", 100);
+
+    println!("配置:");
+    println!("  插入数据量: {}", insert_count);
+    println!("  查询次数: {}", query_count);
+    println!("  更新次数: {}", update_count);
+    println!("  删除次数: {}", delete_count);
+    println!();
 
     // 创建测试数据库
     let config = DBConfig {
@@ -25,7 +46,6 @@ fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试1: 批量插入性能
     println!("测试1: 批量插入性能");
-    let insert_count = 1000;
     let start = Instant::now();
     
     for i in 1..=insert_count {
@@ -44,7 +64,6 @@ fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试2: 查询性能
     println!("测试2: 查询性能");
-    let query_count = 100;
     let start = Instant::now();
     
     for i in 1..=query_count {
@@ -73,7 +92,6 @@ fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试4: 更新性能
     println!("测试4: 更新性能");
-    let update_count = 100;
     let start = Instant::now();
     
     for i in 1..=update_count {
@@ -87,10 +105,10 @@ fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试5: 删除性能
     println!("测试5: 删除性能");
-    let delete_count = 100;
     let start = Instant::now();
     
-    for i in 901..=1000 {  // 删除最后100条记录
+    let delete_start = std::cmp::max(1, insert_count - delete_count + 1);
+    for i in delete_start..=insert_count {  // 删除最后的记录
         let sql = format!("DELETE FROM perf_table WHERE id = {}", i);
         db.execute_single_sql(&sql)?;
     }

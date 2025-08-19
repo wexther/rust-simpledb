@@ -101,6 +101,73 @@ SQL示例:
 cargo run /path/to/your/sqlfile
 ```
 
+### 测试
+
+本项目提供了完整的测试套件，包括功能测试、性能测试和基准测试。
+
+#### 运行所有测试
+
+```bash
+# 运行所有集成测试
+cargo test
+
+# 运行测试并显示详细输出（推荐）
+cargo test -- --nocapture
+```
+
+#### 运行特定测试
+
+```bash
+# 运行功能测试（基于examples目录）
+cargo test --test examples_test
+
+# 运行性能与基准测试（合并版本）
+cargo test --test performance_benchmark
+
+# 运行性能测试并显示详细结果
+cargo test --test performance_benchmark -- --nocapture
+```
+
+#### 自定义性能测试
+
+性能测试支持环境变量配置，可以自定义测试数据大小和测试模式：
+
+```bash
+# 基本配置
+PERF_INSERT_COUNT=2000 cargo test --test performance_benchmark -- --nocapture
+PERF_SELECT_COUNT=1000 cargo test --test performance_benchmark -- --nocapture
+PERF_UPDATE_COUNT=500 cargo test --test performance_benchmark -- --nocapture
+PERF_DELETE_COUNT=200 cargo test --test performance_benchmark -- --nocapture
+
+# 启用详细基准统计（包含最小、最大、平均延迟）
+PERF_DETAILED_STATS=1 cargo test --test performance_benchmark -- --nocapture
+
+# 禁用全表扫描测试
+PERF_FULL_SCAN=0 cargo test --test performance_benchmark -- --nocapture
+
+# 组合使用
+PERF_INSERT_COUNT=5000 PERF_DETAILED_STATS=1 cargo test --test performance_benchmark -- --nocapture
+```
+
+#### 测试说明
+
+- **功能测试** (`examples_test`): 验证数据库基本功能，包括15个测试用例
+- **性能与基准测试** (`performance_benchmark`): 统一的性能测试，支持简单模式和详细基准模式
+  - 简单模式：快速性能概览，显示总体吞吐量和平均延迟
+  - 详细模式：完整的基准测试，包含最小、最大、平均延迟统计
+
+#### 查看测试覆盖的功能
+
+功能测试涵盖以下SQL特性：
+
+- 表的创建和删除
+- 数据的插入、查询、更新、删除
+- WHERE条件查询
+- ORDER BY排序
+- 表达式计算
+- NULL值处理
+- 主键约束
+
 ## 输入
 
 允许且仅允许系统输入单个参数，为内含sql语句的txt文件路径。

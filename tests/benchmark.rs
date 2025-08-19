@@ -85,6 +85,39 @@ impl Default for BenchmarkConfig {
     }
 }
 
+impl BenchmarkConfig {
+    /// 从环境变量创建配置
+    fn from_env() -> Self {
+        let mut config = Self::default();
+        
+        if let Ok(val) = std::env::var("BENCHMARK_INSERT_COUNT") {
+            if let Ok(count) = val.parse() {
+                config.insert_count = count;
+            }
+        }
+        
+        if let Ok(val) = std::env::var("BENCHMARK_SELECT_COUNT") {
+            if let Ok(count) = val.parse() {
+                config.select_count = count;
+            }
+        }
+        
+        if let Ok(val) = std::env::var("BENCHMARK_UPDATE_COUNT") {
+            if let Ok(count) = val.parse() {
+                config.update_count = count;
+            }
+        }
+        
+        if let Ok(val) = std::env::var("BENCHMARK_DELETE_COUNT") {
+            if let Ok(count) = val.parse() {
+                config.delete_count = count;
+            }
+        }
+        
+        config
+    }
+}
+
 /// 数据库基准测试器
 struct DatabaseBenchmark {
     db: SimpleDB,
@@ -326,8 +359,8 @@ impl DatabaseBenchmark {
 
 #[test]
 fn test_database_benchmark() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用默认配置运行基准测试
-    let config = BenchmarkConfig::default();
+    // 使用环境变量或默认配置运行基准测试
+    let config = BenchmarkConfig::from_env();
     
     let mut benchmark = DatabaseBenchmark::new(config)?;
     benchmark.run()?;
