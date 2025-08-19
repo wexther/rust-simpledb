@@ -146,7 +146,7 @@ PERF_DETAILED_STATS=1 cargo test --test performance_benchmark -- --nocapture
 PERF_FULL_SCAN=0 cargo test --test performance_benchmark -- --nocapture
 
 # 组合使用
-PERF_INSERT_COUNT=5000 PERF_DETAILED_STATS=1 cargo test --test performance_benchmark -- --nocapture
+PERF_INSERT_COUNT=2000 PERF_SELECT_COUNT=1000 PERF_UPDATE_COUNT=500 PERF_DELETE_COUNT=200 PERF_DETAILED_STATS=1 cargo test --test performance_benchmark -- --nocapture
 ```
 
 #### 测试说明
