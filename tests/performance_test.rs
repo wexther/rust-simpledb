@@ -1,8 +1,9 @@
 use simple_db::{SimpleDB, DBConfig};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// 简化的性能测试
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn test_database_performance() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Simple DB 性能测试 ===\n");
 
     // 创建测试数据库

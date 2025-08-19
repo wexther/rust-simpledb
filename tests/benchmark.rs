@@ -324,52 +324,10 @@ impl DatabaseBenchmark {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 可以通过命令行参数自定义配置
-    let args: Vec<String> = std::env::args().collect();
-    
-    let mut config = BenchmarkConfig::default();
-    
-    // 简单的命令行参数解析
-    for i in 1..args.len() {
-        match args[i].as_str() {
-            "--insert" => {
-                if i + 1 < args.len() {
-                    config.insert_count = args[i + 1].parse().unwrap_or(config.insert_count);
-                }
-            }
-            "--select" => {
-                if i + 1 < args.len() {
-                    config.select_count = args[i + 1].parse().unwrap_or(config.select_count);
-                }
-            }
-            "--update" => {
-                if i + 1 < args.len() {
-                    config.update_count = args[i + 1].parse().unwrap_or(config.update_count);
-                }
-            }
-            "--delete" => {
-                if i + 1 < args.len() {
-                    config.delete_count = args[i + 1].parse().unwrap_or(config.delete_count);
-                }
-            }
-            "--no-temp-db" => {
-                config.use_temp_db = false;
-            }
-            "--help" => {
-                println!("用法: {} [选项]", args[0]);
-                println!("选项:");
-                println!("  --insert <数量>     插入操作数量 (默认: 1000)");
-                println!("  --select <数量>     查询操作数量 (默认: 500)");
-                println!("  --update <数量>     更新操作数量 (默认: 200)");
-                println!("  --delete <数量>     删除操作数量 (默认: 100)");
-                println!("  --no-temp-db       使用默认数据库而非临时数据库");
-                println!("  --help             显示此帮助信息");
-                return Ok(());
-            }
-            _ => {}
-        }
-    }
+#[test]
+fn test_database_benchmark() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用默认配置运行基准测试
+    let config = BenchmarkConfig::default();
     
     let mut benchmark = DatabaseBenchmark::new(config)?;
     benchmark.run()?;
